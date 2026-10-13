@@ -55,7 +55,8 @@ button{border:0;background:none;padding:0;cursor:pointer;-webkit-user-select:non
 .grab i{width:36px;height:5px;border-radius:3px;background:var(--fg3)}
 .view{display:flex;flex-direction:column;min-height:0;flex:1}
 .view[hidden]{display:none}
-.head{flex:none;padding:0 16px 12px;display:flex;flex-direction:column;gap:12px;position:relative}
+.head{flex:none;padding:0 16px 12px;display:flex;flex-direction:column;gap:12px;position:relative;touch-action:none}
+.head input,.head .seg,.head .go{touch-action:manipulation}
 
 .where{display:flex;align-items:center;gap:8px;height:44px;padding:0 6px 0 12px;border-radius:12px;background:var(--fill)}
 .where svg{flex:none;width:17px;height:17px;color:var(--fg2)}
@@ -295,7 +296,7 @@ function renderDetail(){
     </div></div>`;
   $("dClose").onclick=closeDetail;$("dDrop").onclick=()=>toggleDrop(h.id);
 }
-function openDetail(id){selected=id;$("vList").hidden=true;$("vDetail").hidden=false;renderDetail();const h=homes.find(x=>x.id===id);if(h)panTo(h);draw()}
+function openDetail(id){if(innerWidth<860&&snapI===0)setSnap(1);selected=id;$("vList").hidden=true;$("vDetail").hidden=false;renderDetail();const h=homes.find(x=>x.id===id);if(h)panTo(h);draw()}
 function closeDetail(){selected=null;$("vDetail").hidden=true;$("vList").hidden=false;render()}
 function toast(m){$("toastMsg").textContent=m;const t=$("toast");t.classList.add("show");clearTimeout(toast.t);toast.t=setTimeout(()=>t.classList.remove("show"),900)}
 
@@ -386,12 +387,12 @@ const ptrs=new Map();let lastD=0,moved=false,down=null,lastTap=0;
 cv.addEventListener("pointerdown",e=>{cv.setPointerCapture(e.pointerId);ptrs.set(e.pointerId,[e.offsetX,e.offsetY]);moved=false;down=[e.offsetX,e.offsetY];$("whereIn").blur();
   if(ptrs.size===2){const[a,b]=[...ptrs.values()];lastD=Math.hypot(a[0]-b[0],a[1]-b[1])}});
 cv.addEventListener("pointermove",e=>{if(!ptrs.has(e.pointerId))return;const p=ptrs.get(e.pointerId);
-  if(ptrs.size===1){if(Math.hypot(e.offsetX-down[0],e.offsetY-down[1])>6)moved=true;if(!moved)return;view.lng-=(e.offsetX-p[0])/(1000*view.z);view.lat+=(e.offsetY-p[1])/(1000*view.z*KX);ptrs.set(e.pointerId,[e.offsetX,e.offsetY]);draw()}
+  if(ptrs.size===1){if(Math.hypot(e.offsetX-down[0],e.offsetY-down[1])>6){if(!moved&&innerWidth<860&&snapI===2)setSnap(1);moved=true}if(!moved)return;view.lng-=(e.offsetX-p[0])/(1000*view.z);view.lat+=(e.offsetY-p[1])/(1000*view.z*KX);ptrs.set(e.pointerId,[e.offsetX,e.offsetY]);draw()}
   else{ptrs.set(e.pointerId,[e.offsetX,e.offsetY]);const[a,b]=[...ptrs.values()],d=Math.hypot(a[0]-b[0],a[1]-b[1]);moved=true;if(lastD)zoomAt(d/lastD,(a[0]+b[0])/2,(a[1]+b[1])/2);lastD=d}});
 function endPtr(e){ptrs.delete(e.pointerId);if(ptrs.size<2)lastD=0;if(moved||ptrs.size||e.type!=="pointerup")return;
   const now=Date.now();if(now-lastTap<280){zoomAt(1.8,e.offsetX,e.offsetY);lastTap=0;return}lastTap=now;
   let best=null,bd=18;nearby().forEach(h=>{const[x,y]=P(h.lat,h.lng),d=Math.hypot(x-e.offsetX,y-e.offsetY);if(d<bd){bd=d;best=h}});
-  if(best)openDetail(best.id);else if(selected)closeDetail()}
+  if(best)openDetail(best.id);else{if(selected)closeDetail();if(innerWidth<860&&snapI>0)setSnap(0)}}
 cv.addEventListener("pointerup",endPtr);cv.addEventListener("pointercancel",endPtr);
 cv.addEventListener("wheel",e=>{e.preventDefault();
   const trackpad=!e.ctrlKey&&e.deltaMode===0&&(Math.abs(e.deltaX)>0||Math.abs(e.deltaY)<40);
@@ -400,20 +401,36 @@ cv.addEventListener("wheel",e=>{e.preventDefault();
 (function tick(t){pulseT=t;if(gps&&!ptrs.size&&!matchMedia("(prefers-reduced-motion: reduce)").matches)draw();requestAnimationFrame(tick)})(0);
 
 /* ---------- Sheet ---------- */
-let snapI=1;const snaps=()=>{const h=$("app").clientHeight;return[Math.min(250,h*.36),Math.round(h*.55),Math.round(h*.9)]};
+let snapI=1;const snaps=()=>{const h=$("app").clientHeight;return[Math.min(268,Math.round(h*.4)),Math.round(h*.55),Math.round(h*.88)]};
 function setSnap(i,anim=true){snapI=i;$("sheet").classList.toggle("drag",!anim);$("sheet").style.setProperty("--sh",snaps()[i]+"px");setTimeout(draw,anim?400:0)}
-let dg=null;const g=$("grab");
-g.addEventListener("pointerdown",e=>{if(innerWidth>=860)return;dg={y:e.clientY,h:$("sheet").offsetHeight,m:false};g.setPointerCapture(e.pointerId)});
-g.addEventListener("pointermove",e=>{if(!dg)return;const dy=dg.y-e.clientY;if(Math.abs(dy)>5)dg.m=true;if(!dg.m)return;const s=snaps();$("sheet").classList.add("drag");$("sheet").style.setProperty("--sh",Math.max(s[0]-30,Math.min(s[2]+20,dg.h+dy))+"px")});
-g.addEventListener("pointerup",e=>{if(!dg)return;const h=$("sheet").offsetHeight,s=snaps();$("sheet").classList.remove("drag");
-  if(!dg.m){dg=null;return setSnap((snapI+1)%3)}let bi=0;s.forEach((x,i)=>{if(Math.abs(x-h)<Math.abs(s[bi]-h))bi=i});dg=null;setSnap(bi)});
+/* Drag the sheet from the handle or header; drag down on the list when it's scrolled to the top to shrink it (like Apple Maps) */
+let dg=null;
+function dStart(e,fromList){if(innerWidth>=860||e.pointerType==="mouse"&&e.button!==0)return;
+  if(!fromList&&e.target.closest("input,button,a,#sugg"))return;
+  dg={y:e.clientY,h:$("sheet").offsetHeight,m:false,list:fromList,id:e.pointerId}}
+function dMove(e){if(!dg||e.pointerId!==dg.id)return;const dy=dg.y-e.clientY;
+  if(!dg.m){if(Math.abs(dy)<8)return;
+    if(dg.list){const sc=$("scroll");if(!(dy<0&&sc.scrollTop<=0)){dg=null;return}} // only pull-down at top of list
+    dg.m=true;try{e.target.setPointerCapture(e.pointerId)}catch(_){}}
+  e.preventDefault();const s=snaps();$("sheet").classList.add("drag");$("sheet").style.setProperty("--sh",Math.max(s[0]-40,Math.min(s[2]+20,dg.h+dy))+"px")}
+function dEnd(e){if(!dg||e.pointerId!==dg.id)return;const d=dg;dg=null;$("sheet").classList.remove("drag");
+  if(!d.m){if(!d.list&&e.target.closest("#grab"))setSnap(snapI===0?1:0);return}
+  const h=$("sheet").offsetHeight,s=snaps(),v=d.y-e.clientY;let bi=0;s.forEach((x,i)=>{if(Math.abs(x-h)<Math.abs(s[bi]-h))bi=i});
+  if(v<-50&&bi>=snapI)bi=Math.max(0,snapI-1);if(v>50&&bi<=snapI)bi=Math.min(2,snapI+1);setSnap(bi)}
+for(const id of["grab","head"]){const el=$(id);el.addEventListener("pointerdown",e=>dStart(e,false));}
+$("scroll").addEventListener("pointerdown",e=>dStart(e,true));
+document.addEventListener("pointermove",dMove,{passive:false});
+document.addEventListener("pointerup",dEnd);document.addEventListener("pointercancel",e=>{if(dg&&e.pointerId===dg.id){dg=null;$("sheet").classList.remove("drag");setSnap(snapI)}});
+// iOS: stop the page itself rubber-banding while pulling the list down from the top
+let tY=0;$("scroll").addEventListener("touchstart",e=>{tY=e.touches[0].clientY},{passive:true});
+$("scroll").addEventListener("touchmove",e=>{if($("scroll").scrollTop<=0&&e.touches[0].clientY>tY&&innerWidth<860)e.preventDefault()},{passive:false});
 
 /* ---------- Controls ---------- */
 document.querySelectorAll(".seg button").forEach(b=>b.onclick=()=>{S.days=+b.dataset.days;store.set("dr4-days",S.days);render();fit()});
 $("radBtn").onclick=()=>{S.rad=RADII[(RADII.indexOf(S.rad)+1)%RADII.length];store.set("dr4-rad",S.rad);render();fit()};
 $("gpsBtn").onclick=e=>{e.preventDefault();if(gps){fit();return}startGPS()};
 $("whereIn").addEventListener("input",suggest);
-$("whereIn").addEventListener("focus",()=>{if(innerWidth<860&&snapI<2)setSnap(2);suggest()});
+$("whereIn").addEventListener("focus",()=>{if(innerWidth<860&&snapI===0)setSnap(1);suggest()});
 $("whereIn").addEventListener("keydown",e=>{if(e.key==="Enter"){const b=$("sugg").querySelector("[data-sub]");if(b)setLoc(b.dataset.sub)}});
 $("sugg").addEventListener("pointerdown",e=>e.preventDefault());
 $("sugg").addEventListener("click",e=>{const b=e.target.closest("[data-sub]");if(b){setLoc(b.dataset.sub);setSnap(1)}});
