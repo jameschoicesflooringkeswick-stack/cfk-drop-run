@@ -107,6 +107,11 @@ button{border:0;background:none;padding:0;cursor:pointer;-webkit-user-select:non
 .gps{flex:none;height:32px;padding:0 10px;border-radius:8px;display:flex;align-items:center;gap:5px;color:var(--blue);font-size:14px;font-weight:600}
 .gps svg{width:15px;height:15px;color:var(--blue)}
 .gps.on{background:var(--blue);color:#fff}.gps.on svg{color:#fff}
+.sov{position:fixed;top:0;left:0;right:0;height:var(--apph,100%);z-index:40;background:var(--sheet);display:flex;flex-direction:column;padding:calc(env(safe-area-inset-top,0px) + 10px) 16px 0}
+.sov[hidden]{display:none}.sovtop{display:flex;align-items:center;gap:12px}.sovtop button{flex:none;color:var(--blue);font-size:17px}.sovtop .where{min-width:0}
+.sovlist{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;margin-top:12px;padding-bottom:40px}
+.sovlist button{display:flex;width:100%;align-items:center;justify-content:space-between;gap:10px;padding:14px 4px;text-align:left;font-size:17px;border-bottom:.5px solid var(--sep)}
+.sovlist button span{color:var(--fg2);font-size:14px}.sovlist .me{color:var(--blue);font-weight:600}
 .sugg{position:absolute;left:16px;right:16px;top:48px;z-index:3;background:var(--card);border-radius:12px;box-shadow:var(--shadow);overflow:hidden}
 .sugg button{display:flex;width:100%;align-items:center;justify-content:space-between;padding:12px 14px;text-align:left}
 .sugg button+button{border-top:.5px solid var(--sep)}
@@ -193,7 +198,7 @@ button{border:0;background:none;padding:0;cursor:pointer;-webkit-user-select:non
       <div class="head" id="head">
         <label class="where" for="whereIn">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg>
-          <input id="whereIn" type="search" placeholder="Where are you?" autocomplete="off" enterkeyhint="search">
+          <input id="whereIn" type="text" placeholder="Where are you?" readonly tabindex="-1" style="cursor:pointer">
           <button class="gps" id="gpsBtn" type="button" aria-label="Use my location"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M20.5 3.5 3.5 10.6l7.2 2.7 2.7 7.2z"/></svg><span id="gpsTxt">Locate</span></button>
         </label>
         <div class="sugg" id="sugg" hidden></div>
@@ -216,6 +221,7 @@ button{border:0;background:none;padding:0;cursor:pointer;-webkit-user-select:non
     <p style="margin:0;color:var(--fg2);font-size:15px">Your name goes on the drops you tick, so the team stats add up. You only do this once on this phone.</p>
     <input class="nameIn" id="nameIn" placeholder="First name" autocomplete="given-name" maxlength="30">
     <button class="go" id="nameSave" style="border:0">Save</button></div></div>
+  <div class="sov" id="sov" hidden><div class="sovtop"><label class="where" style="flex:1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg><input id="sovIn" type="search" placeholder="Type a suburb" autocomplete="off" autocorrect="off" autocapitalize="words" enterkeyhint="search"></label><button id="sovX">Cancel</button></div><div class="sovlist" id="sovList"></div></div>
   <div class="toast glass" id="toast"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--green)"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span id="toastMsg">Dropped</span></div>
 </div>
 
@@ -330,7 +336,7 @@ function startGPS(){if(!navigator.geolocation)return failGPS();$("gpsTxt").textC
   try{watchId=navigator.geolocation.watchPosition(p=>{clearTimeout(t);const first=!gps;gps={name:"Your location",lat:p.coords.latitude,lng:p.coords.longitude,live:true};
       if(first){render();fit()}else if(!render.last||km(render.last,gps)>.15)render();else draw()},()=>{clearTimeout(t);failGPS()},{enableHighAccuracy:true,maximumAge:10000,timeout:15000})}catch(e){clearTimeout(t);failGPS()}}
 function stopGPS(){if(watchId!=null)try{navigator.geolocation.clearWatch(watchId)}catch(e){}watchId=null;gps=null}
-function failGPS(){if(gps)return;stopGPS();$("gpsTxt").textContent="Locate";$("whereIn").placeholder="Type your suburb";$("whereIn").focus();render()}
+function failGPS(){if(gps)return;stopGPS();$("gpsTxt").textContent="Locate";$("whereIn").placeholder="Tap to pick your suburb";render()}
 function suggest(){const q=$("whereIn").value.trim().toLowerCase();if(!q){$("sugg").hidden=true;return}
   const m=SUBNAMES.filter(n=>n.toLowerCase().startsWith(q)).concat(SUBNAMES.filter(n=>!n.toLowerCase().startsWith(q)&&n.toLowerCase().includes(q))).slice(0,6);
   if(!m.length){$("sugg").innerHTML=`<button disabled>No suburb matches “${esc(q)}”</button>`;$("sugg").hidden=false;return}
@@ -354,7 +360,7 @@ function render(){
   const o=here();render.last={lat:o.lat,lng:o.lng};
   document.querySelectorAll(".seg button").forEach(b=>b.setAttribute("aria-pressed",+b.dataset.days===S.days));
   $("gpsBtn").classList.toggle("on",!!gps);if(gps)$("gpsTxt").textContent="Live";
-  $("whereIn").placeholder=gps?"Your location · type to change":S.loc?`${S.loc.name} · type to change`:"Where are you?";
+  $("whereIn").placeholder=gps?"Your location · tap to change":S.loc?`${S.loc.name} · tap to change`:"Where are you?";
   const all=nearby().sort((a,b)=>km(o,a)-km(o,b)),todo=all.filter(h=>!drops.has(h.id)),done=all.filter(h=>drops.has(h.id));
   route=plan(o,todo.slice(0,10));const later=todo.slice(10);nextUp=later;
   const place=gps?"you":S.loc?S.loc.name:"CFK";
@@ -487,7 +493,7 @@ function dEnd(e){if(!dg||e.pointerId!==dg.id)return;const d=dg;dg=null;$("sheet"
   if(v<-50&&bi>=snapI)bi=Math.max(0,snapI-1);if(v>50&&bi<=snapI)bi=Math.min(2,snapI+1);setSnap(bi)}
 for(const id of["grab","head"]){const el=$(id);el.addEventListener("pointerdown",e=>dStart(e,false));}
 $("scroll").addEventListener("pointerdown",e=>dStart(e,true));
-document.addEventListener("touchmove",e=>{if(!e.target.closest(".scroll,.panel,#map,#sugg"))e.preventDefault()},{passive:false});
+document.addEventListener("touchmove",e=>{if(!e.target.closest(".scroll,.panel,#map,#sugg,.sovlist"))e.preventDefault()},{passive:false});
 document.addEventListener("pointermove",dMove,{passive:false});
 document.addEventListener("pointerup",dEnd);document.addEventListener("pointercancel",e=>{if(dg&&e.pointerId===dg.id){dg=null;$("sheet").classList.remove("drag");setSnap(snapI)}});
 // iOS: stop the page itself rubber-banding while pulling the list down from the top
@@ -498,10 +504,19 @@ $("scroll").addEventListener("touchmove",e=>{if($("scroll").scrollTop<=0&&e.touc
 document.querySelectorAll(".seg button").forEach(b=>b.onclick=()=>{S.days=+b.dataset.days;store.set("dr4-days",S.days);render();fit()});
 $("radBtn").onclick=()=>{S.rad=RADII[(RADII.indexOf(S.rad)+1)%RADII.length];store.set("dr4-rad",S.rad);render();fit()};
 $("gpsBtn").onclick=e=>{e.preventDefault();if(gps){fit();return}startGPS()};
-$("whereIn").addEventListener("input",suggest);
-$("whereIn").addEventListener("touchstart",()=>{if(innerWidth<860&&snapI!==2)setSnap(2,false)},{passive:true});
-$("whereIn").addEventListener("focus",()=>{if(innerWidth<860&&snapI!==2)setSnap(2,false);suggest();[0,80,250,500].forEach(t=>setTimeout(()=>scrollTo(0,0),t))});
-$("whereIn").addEventListener("keydown",e=>{if(e.key==="Enter"){const b=$("sugg").querySelector("[data-sub]");if(b)setLoc(b.dataset.sub)}});
+function sovList(){const q=$("sovIn").value.trim().toLowerCase();
+  const m=q?SUBNAMES.filter(n=>n.toLowerCase().startsWith(q)).concat(SUBNAMES.filter(n=>!n.toLowerCase().startsWith(q)&&n.toLowerCase().includes(q))).slice(0,30):[];
+  let h=`<button class="me" data-me="1">Use my location</button>`;
+  if(S.loc&&!q)h+=`<button data-sub="${esc(S.loc.name)}">${esc(S.loc.name)}<span>Last used</span></button>`;
+  h+=m.map(n=>{const c=SUB[n.toUpperCase()],cnt=pool().filter(x=>km({lat:c[0],lng:c[1]},x)<=S.rad).length;return`<button data-sub="${esc(n)}">${esc(n)}<span>${cnt} sold nearby</span></button>`}).join("");
+  if(q&&!m.length)h+=`<button disabled>No suburb matches “${esc(q)}”</button>`;$("sovList").innerHTML=h}
+function openSearch(){$("sov").hidden=false;$("sovIn").value="";sovList();$("sovIn").focus();scrollTo(0,0)}
+function closeSearch(){$("sovIn").blur();$("sov").hidden=true;scrollTo(0,0)}
+$("whereIn").addEventListener("click",e=>{e.preventDefault();openSearch()});
+$("sovIn").addEventListener("input",sovList);
+$("sovIn").addEventListener("keydown",e=>{if(e.key==="Enter"){const b=$("sovList").querySelector("[data-sub]");if(b){setLoc(b.dataset.sub);closeSearch()}}});
+$("sovX").onclick=closeSearch;
+$("sovList").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;if(b.dataset.me){closeSearch();if(!gps)startGPS();else fit();return}if(b.dataset.sub){setLoc(b.dataset.sub);closeSearch();if(innerWidth<860)setSnap(1)}});
 $("sugg").addEventListener("pointerdown",e=>e.preventDefault());
 $("sugg").addEventListener("click",e=>{const b=e.target.closest("[data-sub]");if(b){setLoc(b.dataset.sub);setSnap(1)}});
 document.addEventListener("click",e=>{if(!e.target.closest(".where,#sugg"))$("sugg").hidden=true});
