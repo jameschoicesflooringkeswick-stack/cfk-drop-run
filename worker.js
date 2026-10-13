@@ -28,6 +28,17 @@ async function setDrop(request, env) {
 }
 
 
+/* ---------- Agency "recently sold" pages (sites whose terms and robots.txt allow it) ---------- */
+const UA = { "User-Agent": "CFKDropRun/1.0 (internal tool; contact via choicesflooring.com.au)", "Accept": "text/html" };
+const AGENCIES = [
+  { id: "klemich", page: (p) => `https://www.klemich.com.au/recently-sold/${p > 1 ? "page/" + p + "/" : ""}` },
+  { id: "magain", page: (p) => `https://www.magain.com.au/recently-sold/${p > 1 ? "page/" + p + "/" : ""}` },
+  { id: "ocre", page: (p) => `https://ocre.com.au/sold${p > 1 ? "?page=" + p : ""}` },
+  { id: "fox", page: (p) => `https://www.foxrealestate.com.au/sell/sold-properties/${p > 1 ? "page/" + p + "/" : ""}` },
+  { id: "eclipse", page: (p) => `https://www.eclipserealestate.com.au/sold/${p > 1 ? "page/" + p + "/" : ""}` },
+  { id: "raywhite", page: (p) => `https://www.raywhite.com/sold?state=SA${p > 1 ? "&page=" + p : ""}` },
+];
+
 /* ---------- Automatic sales refresh: PropTrack Listings API ----------
    Point & radius search (max 55 km) over a handful of points that cover SA's populated areas,
    status=sold, newest first. First run backfills KEEP_DAYS; later runs only ask for sales since
@@ -141,6 +152,15 @@ export default {
       return Response.json({ connected: !!(env.PROPTRACK_KEY && env.PROPTRACK_SECRET), updated: st.updated || null, lastRun: st.lastRun || null,
         sales: Object.keys(st.sales || {}).length, soldLast7Days: Object.values(st.sales || {}).filter((s) => s.date >= wk).length,
         sample: url.searchParams.has("sample") ? st.sample : undefined, log: (st.log || []).slice(0, 10) }, { headers: { "Cache-Control": "no-store" } });
+    }
+    if (url.pathname === "/api/agency-peek") { // dev helper: shows raw HTML around listings so the parser can be written
+      const src = AGENCIES.find((x) => x.id === url.searchParams.get("a"));
+      if (!src) return new Response("unknown agency", { status: 400 });
+      const pg = +url.searchParams.get("p") || 1, at = +url.searchParams.get("at") || 0;
+      const res = await fetch(src.page(pg), { headers: UA });
+      const html = await res.text();
+      const find = url.searchParams.get("find"); const i = find ? Math.max(0, html.indexOf(find)) : at;
+      return new Response(JSON.stringify({ url: src.page(pg), status: res.status, bytes: html.length, at: i, html: html.slice(i, i + 3000) }), { headers: { "Content-Type": "application/json", "Cache-Control": "no-store" } });
     }
     if (url.pathname === "/api/refresh") {
       if (!env.PROPTRACK_KEY || !env.PROPTRACK_SECRET) return new Response("PropTrack keys not set", { status: 503 });
