@@ -239,7 +239,7 @@ const SOLD_FALLBACK=[{"addr":"4/123A Cross Road","suburb":"Hawthorn","type":"Uni
 const SUB={};PLACES.forEach(p=>{SUB[p[0].toUpperCase()]=[p[1],p[2]]});
 const SUBNAMES=[...new Set(PLACES.map(p=>p[0]))].sort();
 const HQ={name:"CFK, Keswick",lat:-34.9433,lng:138.5762,hq:true};
-const RADII=[3,5,10];
+const RADII=[3,5,10,20];
 
 const store={get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
 const S={days:store.get("dr4-days",31),rad:store.get("dr4-rad",3),loc:store.get("dr4-loc",null)};
