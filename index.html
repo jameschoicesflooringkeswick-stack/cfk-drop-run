@@ -11,7 +11,7 @@
 :root{
   --sheet:rgba(249,249,251,.94); --card:#fff; --glass:rgba(255,255,255,.85);
   --fg:#000; --fg2:rgba(60,60,67,.62); --fg3:rgba(60,60,67,.3); --sep:rgba(60,60,67,.18); --fill:rgba(120,120,128,.12); --fill2:rgba(120,120,128,.2);
-  --blue:#007aff; --green:#34c759; --red:#ff3b30;
+  --blue:#0066e6; --green:#28b04c; --red:#ff3b30;
   --water:#aad3ee; --land:#f5f3ee; --land2:#efece5; --border:rgba(130,120,100,.22); --label:rgba(80,74,64,.62);
   --road:#ffffff; --roadEdge:rgba(120,110,95,.28); --hwy:#ffd879; --hwyEdge:#e3b04b; --roadLabel:#55524c;
   --shadow:0 4px 18px rgba(0,0,0,.13),0 0 0 .5px rgba(0,0,0,.05);
@@ -421,7 +421,8 @@ function resize(){const r=cv.getBoundingClientRect(),dp=Math.min(3,devicePixelRa
 const P=(la,ln)=>[W/2+(ln-view.lng)*1000*view.z,H/2-(la-view.lat)*1000*view.z*KX];
 const U=(x,y)=>[view.lat-(y-H/2)/(1000*view.z*KX),view.lng+(x-W/2)/(1000*view.z)];
 function vp(){return innerWidth>=860?{x:414,y:56,w:W-414,h:H-56}:{x:0,y:56,w:W,h:H-56-$("sheet").offsetHeight}}
-function dot(x,y,r,fill,label,sel){ctx.save();ctx.shadowColor="rgba(0,0,0,.25)";ctx.shadowBlur=sel?8:3;ctx.shadowOffsetY=1;ctx.beginPath();ctx.arc(x,y,r+1.5,0,7);ctx.fillStyle="#fff";ctx.fill();ctx.restore();
+function dot(x,y,r,fill,label,sel){ctx.save();ctx.shadowColor="rgba(0,0,0,.45)";ctx.shadowBlur=sel?9:4;ctx.shadowOffsetY=1;ctx.beginPath();ctx.arc(x,y,r+2.2,0,7);ctx.fillStyle="#fff";ctx.fill();ctx.restore();
+  ctx.beginPath();ctx.arc(x,y,r+2.2,0,7);ctx.lineWidth=.8;ctx.strokeStyle="rgba(0,0,0,.25)";ctx.stroke();
   ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.fillStyle=fill;ctx.fill();if(label!=null){ctx.fillStyle="#fff";ctx.font=`700 ${sel?13:10}px ${C["--rounded"]}`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(label,x,y+.5)}}
 let pulseT=0;
 function draw(){if(!W)return;colors();ctx.fillStyle=C["--water"];ctx.fillRect(0,0,W,H);ctx.lineJoin="round";
@@ -439,14 +440,14 @@ function draw(){if(!W)return;colors();ctx.fillStyle=C["--water"];ctx.fillRect(0,
   if(route.length){const pts=[o,...route].map(h=>P(h.lat,h.lng));ctx.lineCap="round";ctx.beginPath();pts.forEach((p,i)=>i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]));
     ctx.lineWidth=4.5;ctx.strokeStyle=C["--card"];ctx.globalAlpha=.85;ctx.stroke();ctx.globalAlpha=1;ctx.lineWidth=2.2;ctx.strokeStyle=C["--blue"];ctx.globalAlpha=.85;ctx.stroke();ctx.globalAlpha=1}
   const inR=new Set(nearby().map(h=>h.id));
-  pool().forEach(h=>{if(inR.has(h.id))return;const[x,y]=P(h.lat,h.lng);ctx.beginPath();ctx.arc(x,y,2.5,0,7);ctx.fillStyle=C["--blue"];ctx.globalAlpha=.35;ctx.fill();ctx.globalAlpha=1});
+  pool().forEach(h=>{if(inR.has(h.id))return;const[x,y]=P(h.lat,h.lng);ctx.beginPath();ctx.arc(x,y,3.6,0,7);ctx.fillStyle="#fff";ctx.globalAlpha=.9;ctx.fill();ctx.beginPath();ctx.arc(x,y,2.5,0,7);ctx.fillStyle=C["--blue"];ctx.globalAlpha=.6;ctx.fill();ctx.globalAlpha=1});
   nearby().filter(h=>drops.has(h.id)).forEach(h=>{const[x,y]=P(h.lat,h.lng);dot(x,y,4.5,C["--green"],null,h.id===selected)});
   {const[x,y]=P(HQ.lat,HQ.lng);ctx.save();ctx.shadowColor="rgba(0,0,0,.25)";ctx.shadowBlur=5;ctx.beginPath();ctx.roundRect(x-15,y-8.5,30,17,5);ctx.fillStyle=C["--fg"];ctx.fill();ctx.restore();
     ctx.fillStyle=C["--card"];ctx.font=`800 9px ${C["--rounded"]}`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText("CFK",x,y+.5)}
   const zr=view.z>8?9:view.z>4?6:4.5;
   [...route.entries()].reverse().forEach(([i,h])=>{const[x,y]=P(h.lat,h.lng),sel=h.id===selected;dot(x,y,sel?11:zr,C["--blue"],zr>=9||sel?i+1:null,sel)});
   if(!o.hq){const ph=(pulseT%1800)/1800;if(gps){ctx.beginPath();ctx.arc(ox,oy,9+ph*16,0,7);ctx.fillStyle=C["--blue"];ctx.globalAlpha=.3*(1-ph);ctx.fill();ctx.globalAlpha=1}
-    ctx.save();ctx.shadowColor="rgba(0,0,0,.35)";ctx.shadowBlur=5;ctx.beginPath();ctx.arc(ox,oy,8,0,7);ctx.fillStyle="#fff";ctx.fill();ctx.restore();ctx.beginPath();ctx.arc(ox,oy,5.5,0,7);ctx.fillStyle=C["--blue"];ctx.fill()}
+    ctx.beginPath();ctx.arc(ox,oy,15,0,7);ctx.fillStyle=C["--blue"];ctx.globalAlpha=.16;ctx.fill();ctx.globalAlpha=1;ctx.save();ctx.shadowColor="rgba(0,0,0,.5)";ctx.shadowBlur=6;ctx.beginPath();ctx.arc(ox,oy,8,0,7);ctx.fillStyle="#fff";ctx.fill();ctx.restore();ctx.beginPath();ctx.arc(ox,oy,8,0,7);ctx.lineWidth=.8;ctx.strokeStyle="rgba(0,0,0,.25)";ctx.stroke();ctx.beginPath();ctx.arc(ox,oy,5.5,0,7);ctx.fillStyle=C["--blue"];ctx.fill()}
 }
 function fit(){const v=vp(),o=here(),d=S.rad/111.32,pts=[o,{lat:o.lat+d,lng:o.lng},{lat:o.lat-d,lng:o.lng},...nearby()];
   const la=pts.map(p=>p.lat),ln=pts.map(p=>p.lng),n=Math.max(...la),s=Math.min(...la),e=Math.max(...ln),w=Math.min(...ln);
