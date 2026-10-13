@@ -93,9 +93,12 @@ async function geocode(r) {
   const j = res.ok ? await res.json().catch(() => []) : [];
   return j[0] ? { lat: +j[0].lat, lng: +j[0].lon } : null;
 }
-async function crawlAgencies(env) {
+async function crawlAgencies(env, force) {
   const st = (await env.DROPS.get("agency:v1", "json")) || { rows: {}, a: 0, p: 1, passes: {}, log: [] };
   if (!st.fix1) { st.fix1 = 1; delete st.passes.klemich; } // first klemich pass hit a wrong page URL
+  // first pass of each site runs one page a minute so the app fills quickly; after that one page per 30 min
+  const firstPassLeft = AGENCIES.some((x) => !st.passes[x.id]);
+  if (!force && !firstPassLeft && st.updated && Date.now() - Date.parse(st.updated) < 29 * 60e3) return null;
   const src = AGENCIES[st.a % AGENCIES.length], first = !st.passes[src.id];
   const today = day(new Date()), u = src.page(st.p);
   let status = 0, found = 0, added = 0, known = null;
@@ -117,6 +120,7 @@ async function crawlAgencies(env) {
   for (const r of Object.values(st.rows)) {
     if (geo >= 6) break;
     if (r.lat || r.geoTried) continue;
+    if (geo === 0) await new Promise((ok) => setTimeout(ok, 1100));
     r.geoTried = 1; geo++;
     try { const g = await geocode(r); if (g) Object.assign(r, g); } catch {}
     await new Promise((ok) => setTimeout(ok, 1200));
@@ -249,7 +253,7 @@ export default {
         agencies: await (async () => { const ag = (await env.DROPS.get("agency:v1", "json")) || { rows: {} }; const rows = Object.values(ag.rows);
           return { houses: rows.length, geocoded: rows.filter((r) => r.lat).length, bySite: AGENCIES.map((a) => [a.id, rows.filter((r) => r.src === a.id).length]), next: ag.a !== undefined ? AGENCIES[ag.a % AGENCIES.length].id + " p" + ag.p : null, log: (ag.log || []).slice(0, 8) }; })() }, { headers: { "Cache-Control": "no-store" } });
     }
-    if (url.pathname === "/api/crawl-now") return Response.json(await crawlAgencies(env), { headers: { "Cache-Control": "no-store" } });
+    if (url.pathname === "/api/crawl-now") return Response.json(await crawlAgencies(env, true), { headers: { "Cache-Control": "no-store" } });
     if (url.pathname === "/api/agency-test") { // dev helper: parsed rows from one page
       const src = AGENCIES.find((x) => x.id === url.searchParams.get("a"));
       if (!src) return new Response("unknown agency", { status: 400 });
