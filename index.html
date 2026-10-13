@@ -36,13 +36,14 @@
   --shadow:0 4px 18px rgba(0,0,0,.5),0 0 0 .5px rgba(255,255,255,.06); color-scheme:dark}
 *{box-sizing:border-box}
 html,body{position:fixed;inset:0;height:auto;margin:0;padding:0!important;overflow:hidden;overscroll-behavior:none;-webkit-text-size-adjust:100%}
-body{background:var(--land);color:var(--fg);font-family:var(--font);font-size:17px;letter-spacing:-.01em;-webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent}
+html,body{background:#f9f9fb}@media (prefers-color-scheme:dark){html,body{background:#1c1c1e}}
+body{color:var(--fg);font-family:var(--font);font-size:17px;letter-spacing:-.01em;-webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent}
 button,a,input{font:inherit;color:inherit;touch-action:manipulation}
 button{border:0;background:none;padding:0;cursor:pointer;-webkit-user-select:none;user-select:none}
 .app{position:fixed;inset:0;overflow:hidden}
 #map{position:absolute;inset:0;width:100%;height:100%}
-.maplibregl-ctrl-attrib{font-size:10px}
-.maplibregl-ctrl-bottom-right{bottom:auto;right:auto;left:8px;top:calc(8px + env(safe-area-inset-top,0px))}
+.legal{position:absolute;left:14px;bottom:calc(100% + 8px);font-size:11px;font-weight:500;color:var(--fg2);text-decoration:underline;text-underline-offset:2px;text-shadow:0 0 3px var(--land),0 0 3px var(--land)}
+.sheet::after{content:"";position:absolute;left:0;right:0;top:100%;height:200px;background:var(--sheet)}
 .stop-pin{width:26px;height:26px;border-radius:50%;background:var(--blue);color:#fff;border:2.5px solid #fff;box-shadow:0 1px 5px rgba(0,0,0,.4);display:grid;place-items:center;font:800 13px/1 var(--rounded);cursor:pointer}
 .stop-pin.sel{width:34px;height:34px;font-size:15px}
 .stop-pin.next{width:22px;height:22px;background:#fff;color:var(--blue);border:2px solid var(--blue);font-size:10px}
@@ -171,6 +172,7 @@ button{border:0;background:none;padding:0;cursor:pointer;-webkit-user-select:non
 @media (min-width:860px){
   .sheet{left:12px;right:auto;bottom:12px;top:56px;width:390px;height:auto!important;border-radius:14px;box-shadow:var(--shadow)}
   .grab{height:12px}.grab i{display:none}
+  .sheet::after{display:none}.legal{bottom:auto;top:calc(100% + 8px)}
 }
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
@@ -184,6 +186,7 @@ button{border:0;background:none;padding:0;cursor:pointer;-webkit-user-select:non
     <button id="zOut" aria-label="Zoom out"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M5 12h14"/></svg></button></div>
 
   <section class="sheet" id="sheet">
+    <a class="legal" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">Legal</a>
     <div class="grab" id="grab"><i></i></div>
     <div class="view" id="vList">
       <div class="head" id="head">
@@ -418,7 +421,7 @@ function addLayers(){
 function initMap(){
   if(!window.maplibregl){$("map").innerHTML='<div class="empty" style="padding-top:30vh">Map could not load. Check your connection.</div>';return}
   const o=here();
-  map=new maplibregl.Map({container:"map",style:darkQ.matches?STYLE_DARK:STYLE_LIGHT,center:[o.lng,o.lat],zoom:13,attributionControl:{compact:true},pitchWithRotate:false,dragRotate:false});
+  map=new maplibregl.Map({container:"map",style:darkQ.matches?STYLE_DARK:STYLE_LIGHT,center:[o.lng,o.lat],zoom:13,attributionControl:false,pitchWithRotate:false,dragRotate:false});
   map.touchZoomRotate.disableRotation();
   map.on("style.load",addLayers);
   const hq=document.createElement("div");hq.className="hq-pin";hq.textContent="CFK";
