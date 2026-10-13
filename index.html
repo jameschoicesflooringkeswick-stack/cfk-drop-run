@@ -185,7 +185,7 @@ button{border:0;background:none;padding:0;cursor:pointer;-webkit-user-select:non
   </section>
   <div class="overlay" id="stats" hidden><div class="panel" role="dialog" aria-label="Team stats">
     <div class="ptop"><h2>Team stats</h2><button class="close" id="statsClose" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" width="12" height="12"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
-    <div class="seg" id="statsSeg"><button data-p="7">Week</button><button data-p="31">Month</button><button data-p="150">All</button></div>
+    <div class="seg" id="statsSeg"><button data-p="week">Week</button><button data-p="month">Year by month</button><button data-p="all">All years</button></div>
     <div id="statsBody"></div></div></div>
   <div class="overlay" id="nameSheet" hidden><div class="panel" role="dialog" aria-label="Your name">
     <div class="ptop"><h2>Who's dropping?</h2></div>
@@ -261,19 +261,32 @@ async function toggleDrop(id){
 
 
 /* ---------- Team stats (Cloudflare version) ---------- */
-let statsP=7;
+let statsP="week";
 function renderStats(){
-  document.querySelectorAll("#statsSeg button").forEach(b=>b.setAttribute("aria-pressed",+b.dataset.p===statsP));
-  const cut=Date.now()-statsP*864e5,rows=[...dropInfo.values()].filter(x=>x.t&&x.t>=cut);
-  const by=(k)=>{const m=new Map();rows.forEach(r=>{const v=r[k]||"Unknown";m.set(v,(m.get(v)||0)+1)});return[...m.entries()].sort((a,b)=>b[1]-a[1])};
-  const people=by("n"),subs=by("s").slice(0,8);
-  const today=new Date();today.setHours(0,0,0,0);const nd=statsP===7?7:14,days=[];
-  for(let i=nd-1;i>=0;i--){const d0=today.getTime()-i*864e5,d1=d0+864e5;days.push([new Date(d0),[...dropInfo.values()].filter(x=>x.t>=d0&&x.t<d1).length])}
-  const mx=Math.max(1,...days.map(d=>d[1])),pm=Math.max(1,...people.map(p=>p[1])),sm=Math.max(1,...subs.map(p=>p[1]));
-  const bars=(list,max)=>list.length?`<div class="bars">${list.map(([k,v])=>`<div class="bar"><em>${esc(k)}</em><i style="width:${Math.max(3,v/max*100)}%"></i><b>${v}</b></div>`).join("")}</div>`:`<div class="empty" style="padding:14px">No drops yet</div>`;
-  $("statsBody").innerHTML=`<div class="big"><div><b>${rows.length}</b><span>flyers dropped</span></div><div><b>${people.length}</b><span>people dropping</span></div></div>
-    <div class="cap" style="margin:4px 4px -6px">Last ${nd} days</div>
-    <div class="days">${days.map(([d,v])=>`<div>${v?`<b>${v}</b>`:""}<i style="height:${v/mx*78}%"></i>${d.toLocaleDateString("en-AU",{weekday:"narrow"})}</div>`).join("")}</div>
+  document.querySelectorAll("#statsSeg button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.p===statsP));
+  const all=[...dropInfo.values()].filter(x=>x.t),now=new Date(),MON=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  let rows,cols,label,title;
+  if(statsP==="week"){ // Monday to Sunday, this week
+    const d=new Date(now);d.setHours(0,0,0,0);d.setDate(d.getDate()-((d.getDay()+6)%7));const w0=d.getTime(),w1=w0+7*864e5;
+    rows=all.filter(x=>x.t>=w0&&x.t<w1);
+    cols=["M","T","W","T","F","S","S"].map((l,i)=>{const a=w0+i*864e5;return[l,rows.filter(x=>x.t>=a&&x.t<a+864e5).length,a<=Date.now()&&Date.now()<a+864e5]});
+    const end=new Date(w1-864e5);title=`${d.getDate()} ${MON[d.getMonth()]} – ${end.getDate()} ${MON[end.getMonth()]}`;label="this week";
+  }else if(statsP==="month"){ // January to December, this year
+    const y=now.getFullYear();rows=all.filter(x=>new Date(x.t).getFullYear()===y);
+    cols=MON.map((m,i)=>[m[0],rows.filter(x=>new Date(x.t).getMonth()===i).length,i===now.getMonth()]);
+    title=String(y);label=`in ${y}`;
+  }else{ // every calendar year since the first drop
+    rows=all;const y0=all.length?Math.min(...all.map(x=>new Date(x.t).getFullYear())):now.getFullYear(),years=[];
+    for(let y=y0;y<=now.getFullYear();y++)years.push(y);
+    cols=years.map(y=>[String(y),rows.filter(x=>new Date(x.t).getFullYear()===y).length,y===now.getFullYear()]);
+    title="All time";label="all time";
+  }
+  const by=k=>{const m=new Map();rows.forEach(r=>{const v=r[k]||"Unknown";m.set(v,(m.get(v)||0)+1)});return[...m.entries()].sort((a,b)=>b[1]-a[1])};
+  const people=by("n"),subs=by("s").slice(0,8),mx=Math.max(1,...cols.map(c=>c[1])),pm=Math.max(1,...people.map(p=>p[1])),sm=Math.max(1,...subs.map(p=>p[1]));
+  const bars=(list,max)=>list.length?`<div class="bars">${list.map(([k,v])=>`<div class="bar"><em>${esc(k)}</em><i style="width:${Math.max(3,v/max*100)}%"></i><b>${v}</b></div>`).join("")}</div>`:`<div class="empty" style="padding:14px">No drops ${label}</div>`;
+  $("statsBody").innerHTML=`<div class="big"><div><b>${rows.length}</b><span>flyers dropped ${label}</span></div><div><b>${people.length}</b><span>people dropping</span></div></div>
+    <div class="cap" style="margin:4px 4px -6px">${title}</div>
+    <div class="days">${cols.map(([l,v,cur])=>`<div>${v?`<b>${v}</b>`:""}<i style="height:${v/mx*78}%;${cur?"":"opacity:.55"}"></i><span style="${cur?"color:var(--fg);font-weight:700":""}">${l}</span></div>`).join("")}</div>
     <div class="cap" style="margin:4px 4px -6px">By person</div>${bars(people,pm)}
     <div class="cap" style="margin:4px 4px -6px">Top suburbs</div>${bars(subs,sm)}
     ${myName?`<button class="more" id="renameBtn">You're dropping as ${esc(myName)} · change</button>`:""}`;
@@ -494,7 +507,7 @@ document.addEventListener("click",e=>{if(!e.target.closest(".where,#sugg"))$("su
 $("fitBtn").onclick=fit;
 $("statsBtn").onclick=()=>{$("stats").hidden=false;renderStats()};
 $("statsClose").onclick=()=>{$("stats").hidden=true};
-$("stats").addEventListener("click",e=>{if(e.target.id==="stats")$("stats").hidden=true;const b=e.target.closest("[data-p]");if(b){statsP=+b.dataset.p;renderStats()}if(e.target.closest("#renameBtn"))askName().then(renderStats)});
+$("stats").addEventListener("click",e=>{if(e.target.id==="stats")$("stats").hidden=true;const b=e.target.closest("[data-p]");if(b){statsP=b.dataset.p;renderStats()}if(e.target.closest("#renameBtn"))askName().then(renderStats)});
 const smoothZoom=f=>{let n=0;const s=()=>{zoomAt(Math.pow(f,1/8));if(++n<8)requestAnimationFrame(s)};s()};
 $("zIn").onclick=()=>smoothZoom(1.8);$("zOut").onclick=()=>smoothZoom(1/1.8);
 $("scroll").addEventListener("click",e=>{const t=e.target.closest("[data-tick]");if(t){e.stopPropagation();toggleDrop(t.dataset.tick);return}const r=e.target.closest(".row");if(r)openDetail(r.dataset.id)});

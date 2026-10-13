@@ -1,6 +1,5 @@
 // CFK Drop Run — serves the app and stores shared "dropped" ticks in KV (binding: DROPS).
 const ID = /^[a-z0-9-]{1,160}$/;
-const KEEP_SECONDS = 60 * 60 * 24 * 150; // ticks expire after ~5 months
 
 async function listDrops(env) {
   const ids = [];
@@ -20,7 +19,6 @@ async function setDrop(request, env) {
   if (typeof id !== "string" || !ID.test(id)) return new Response("Bad id", { status: 400 });
   const clean = (v) => (typeof v === "string" ? v.replace(/[\u0000-\u001f]/g, "").trim().slice(0, 40) : "");
   if (done) await env.DROPS.put("d:" + id, new Date().toISOString(), {
-    expirationTtl: KEEP_SECONDS,
     metadata: { n: clean(name), s: clean(suburb), t: Date.now() }, // who / suburb / when — used for team stats
   });
   else await env.DROPS.delete("d:" + id);
