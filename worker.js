@@ -144,7 +144,9 @@ async function crawlAgencies(env, force) {
   st.sites ||= {};
   if (!st.fix1) { st.fix1 = 1; delete st.passes.klemich; } // first klemich pass hit a wrong page URL
   // first pass of each site runs one page a minute so the app fills quickly; after that one page per 30 min
-  const firstPassLeft = AGENCIES.some((x) => !st.passes[x.id]);
+  // a one-off quick pass (1 page/min) after reading depth went from ~6 to ~10 weeks, so "Moving in" fills today
+  st.deep ||= {};
+  const firstPassLeft = AGENCIES.some((x) => !st.passes[x.id] || !st.deep[x.id]);
   if (!force && !firstPassLeft && st.updated && Date.now() - Date.parse(st.updated) < 29 * 60e3) return null;
   const src = AGENCIES[st.a % AGENCIES.length], first = !st.passes[src.id];
   const today = day(new Date()), u = src.page(st.p);
@@ -178,7 +180,7 @@ async function crawlAgencies(env, force) {
     await new Promise((ok) => setTimeout(ok, 1200));
   }
   // next page; wrap to next agency after its last page (or when a page comes back empty)
-  if (st.p >= src.pages || !found) { st.passes[src.id] = (st.passes[src.id] || 0) + 1; st.a = (st.a + 1) % AGENCIES.length; st.p = 1; } else st.p++;
+  if (st.p >= src.pages || !found) { st.passes[src.id] = (st.passes[src.id] || 0) + 1; st.deep[src.id] = 1; st.a = (st.a + 1) % AGENCIES.length; st.p = 1; } else st.p++;
   const cut = day(new Date(Date.now() - KEEP_DAYS * 864e5));
   for (const [k, v] of Object.entries(st.rows)) if (v.date < cut) delete st.rows[k];
   st.updated = new Date().toISOString();
