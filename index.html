@@ -288,14 +288,28 @@ let dropApi=false,dropInfo=new Map(),myName=store.get("dr4-name","");
 async function connectDrops(){
   try{const db=await window.claude?.use?.("db");if(db){dbRef=db.collection("drops");dbRef.onSnapshot(snap=>{drops=new Set(snap.docs.map(d=>d.id));render()},()=>{dbRef=null});return}}catch(e){}
   if(/^https?:$/.test(location.protocol)){ // Cloudflare version: shared ticks via /api/drops
-    const pull=async()=>{try{const r=await fetch("/api/drops",{cache:"no-store"});if(!r.ok)return;const j=await r.json();if(Array.isArray(j)){dropApi=true;const list=j.map(x=>typeof x==="string"?{id:x}:x);drops=new Set(list.map(x=>x.id));dropInfo=new Map(list.map(x=>[x.id,x]));store.set("dr4-drops",[...drops]);$("statsBtn").hidden=false;render();if(!$("stats").hidden)renderStats()}}catch(e){}};
+    const pull=async()=>{try{await flushDrops();const r=await fetch("/api/drops",{cache:"no-store"});if(!r.ok)return;const j=await r.json();if(Array.isArray(j)){dropApi=true;const list=j.map(x=>typeof x==="string"?{id:x}:x);drops=new Set(list.map(x=>x.id));dropInfo=new Map(list.map(x=>[x.id,x]));applyPending();store.set("dr4-drops",[...drops]);$("statsBtn").hidden=false;render();if(!$("stats").hidden)renderStats()}}catch(e){}};
     pull();setInterval(()=>{if(!document.hidden)pull()},30000);document.addEventListener("visibilitychange",()=>{if(!document.hidden)pull()})}
 }
+/* Ticks are saved on the phone first and sent to the server in the background (retried until it works).
+   For a few minutes after a tick the phone's version wins, because the server's shared list can lag. */
+let pending=store.get("dr4-pending",{});
+function applyPending(){const now=Date.now();
+  for(const[id,p]of Object.entries(pending)){
+    if(p.ok&&now-p.t>5*60e3){delete pending[id];continue}
+    if(p.done){drops.add(id);if(!dropInfo.has(id))dropInfo.set(id,{id,n:myName,t:p.t,s:p.s})}else{drops.delete(id);dropInfo.delete(id)}}
+  store.set("dr4-pending",pending)}
+async function flushDrops(){
+  if(!/^https?:$/.test(location.protocol))return;
+  for(const[id,p]of Object.entries(pending)){if(p.ok)continue;
+    try{const r=await fetch("/api/drops",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id,done:p.done,name:myName,suburb:p.s||""})});if(r.ok){p.ok=1;p.t=Date.now()}}catch(e){}}
+  store.set("dr4-pending",pending)}
 async function toggleDrop(id){
   const was=drops.has(id);was?drops.delete(id):drops.add(id);store.set("dr4-drops",[...drops]);
-  if(!was){dropInfo.set(id,{id,n:myName,t:Date.now()});toast("Dropped");navigator.vibrate&&navigator.vibrate(12)}else dropInfo.delete(id);render();
-  if(dbRef){try{was?await dbRef.doc(id).delete():await dbRef.doc(id).set({at:new Date().toISOString()})}catch(e){}}
-  else if(dropApi){try{await fetch("/api/drops",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id,done:!was,name:myName,suburb:(homes.find(h=>h.id===id)||{}).suburb||""})})}catch(e){}}
+  if(!was){dropInfo.set(id,{id,n:myName,t:Date.now(),s:(homes.find(h=>h.id===id)||{}).suburb||""});toast("Dropped");navigator.vibrate&&navigator.vibrate(12)}else dropInfo.delete(id);render();
+  if(dbRef){try{was?await dbRef.doc(id).delete():await dbRef.doc(id).set({at:new Date().toISOString()})}catch(e){}return}
+  pending[id]={done:!was,t:Date.now(),s:(homes.find(h=>h.id===id)||{}).suburb||""};store.set("dr4-pending",pending);
+  flushDrops().then(()=>{if(!$("stats").hidden)renderStats()});
 }
 
 

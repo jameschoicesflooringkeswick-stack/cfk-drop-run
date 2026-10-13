@@ -3,15 +3,22 @@
 // (secrets PROPTRACK_KEY + PROPTRACK_SECRET). Sales are cached in KV under "sales:v1".
 const ID = /^[a-z0-9-]{1,160}$/;
 
+// All ticks live in one KV value ("drops:v1") so a phone reads back its own tick straight away
+// (KV's key listing can lag by up to a minute, which made fresh ticks vanish on reopen).
+async function allDrops(env) {
+  let all = await env.DROPS.get("drops:v1", "json");
+  if (!all) { // one-time move from the old one-key-per-tick layout
+    all = {}; let cursor;
+    do { const page = await env.DROPS.list({ prefix: "d:", cursor });
+      for (const k of page.keys) all[k.name.slice(2)] = k.metadata || {};
+      cursor = page.list_complete ? null : page.cursor; } while (cursor);
+    await env.DROPS.put("drops:v1", JSON.stringify(all));
+  }
+  return all;
+}
 async function listDrops(env) {
-  const ids = [];
-  let cursor;
-  do {
-    const page = await env.DROPS.list({ prefix: "d:", cursor });
-    for (const k of page.keys) ids.push({ id: k.name.slice(2), ...(k.metadata || {}) });
-    cursor = page.list_complete ? null : page.cursor;
-  } while (cursor);
-  return Response.json(ids, { headers: { "Cache-Control": "no-store" } });
+  const all = await allDrops(env);
+  return Response.json(Object.entries(all).map(([id, m]) => ({ id, ...m })), { headers: { "Cache-Control": "no-store" } });
 }
 
 async function setDrop(request, env) {
@@ -20,10 +27,10 @@ async function setDrop(request, env) {
   const { id, done, name, suburb } = body || {};
   if (typeof id !== "string" || !ID.test(id)) return new Response("Bad id", { status: 400 });
   const clean = (v) => (typeof v === "string" ? v.replace(/[\u0000-\u001f]/g, "").trim().slice(0, 40) : "");
-  if (done) await env.DROPS.put("d:" + id, new Date().toISOString(), {
-    metadata: { n: clean(name), s: clean(suburb), t: Date.now() }, // who / suburb / when — used for team stats
-  });
-  else await env.DROPS.delete("d:" + id);
+  const all = await allDrops(env);
+  if (done) all[id] = { n: clean(name), s: clean(suburb), t: (all[id] && all[id].t) || Date.now() }; // suburb / when — used for stats
+  else delete all[id];
+  await env.DROPS.put("drops:v1", JSON.stringify(all));
   return Response.json({ ok: true });
 }
 
