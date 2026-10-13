@@ -85,7 +85,7 @@ function parseAgency(html, base) {
 
 /* One page per cron run, so each site sees at most ~2 requests an hour. A full pass takes ~13 hours.
    Sale date = the day a house first appears on an agency's sold page. On the very first pass the date
-   is borrowed from sales.json when the address matches, otherwise estimated from how deep the page is. */
+   is estimated from how deep the page is (page 1 = newest). */
 const geoKey = (a, s) => (a + "|" + s).toLowerCase().replace(/[^a-z0-9|/]/g, "");
 async function geocode(r) {
   const q = new URLSearchParams({ format: "json", countrycodes: "au", limit: "1", q: `${r.addr}, ${r.suburb}, South Australia` });
@@ -102,10 +102,6 @@ async function crawlAgencies(env) {
     const res = await fetch(u, { headers: UA }); status = res.status;
     if (res.ok) {
       const rows = parseAgency(await res.text(), u); found = rows.length;
-      if (first) { // dates from the hand-collected list where we can
-        known = new Map();
-        try { const j = await (await env.ASSETS.fetch(new Request("https://x/sales.json"))).json(); for (const x of j.sales || []) known.set(geoKey(x.addr, x.suburb), x.date); } catch {}
-      }
       for (const r of rows) {
         const k = geoKey(r.addr, r.suburb);
         if (st.rows[k]) { st.rows[k].seen = today; continue; }

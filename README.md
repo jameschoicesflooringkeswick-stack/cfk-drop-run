@@ -3,7 +3,7 @@
 Map of recently sold homes across South Australia for Choices Flooring Keswick flyer drops.
 
 - `index.html` — the app (live GPS, week/fortnight/month filter, best-route planning)
-- `sales.json` — recent sales, refreshed nightly by a scheduled task
+- Sales come only from agency sites whose terms and robots.txt allow it (see `AGENCIES` in worker.js), read slowly by a 30-minute cron, plus PropTrack if licensed keys are added
 - Map: OpenFreeMap / OpenMapTiles / © OpenStreetMap contributors
 - `functions/api/drops.js` — shared "dropped" ticks, stored in Cloudflare KV
 
