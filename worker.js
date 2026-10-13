@@ -118,6 +118,15 @@ export default {
       const recent = Object.values(st.sales || {}).filter((s) => s.date >= new Date(Date.now() - 7 * 864e5).toISOString().slice(0, 10)).length;
       return Response.json({ updated: st.updated || null, cursor: st.cursor, suburbs: SLUGS.length, sales: Object.keys(st.sales || {}).length, soldLast7Days: recent, log: (st.log || []).slice(0, 15) }, { headers: { "Cache-Control": "no-store" } });
     }
+    if (url.pathname === "/api/probe") { // diagnostics: can this server reach a listings site?
+      const u = url.searchParams.get("u") || "";
+      let t; try { t = new URL(u); } catch { return new Response("bad url", { status: 400 }); }
+      if (!/^(www\.)?(domain\.com\.au|homely\.com\.au|realestate\.com\.au|api\.domain\.com\.au|onthehouse\.com\.au|property\.com\.au)$/.test(t.hostname)) return new Response("host not allowed", { status: 400 });
+      const r = await fetch(t, { headers: { "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15", "Accept": "text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.8", "Accept-Language": "en-AU,en;q=0.9" } }).catch((e) => ({ status: 0, text: async () => String(e) }));
+      const body = await r.text();
+      const i = Math.max(0, body.search(/[Ss]old/));
+      return Response.json({ status: r.status, bytes: body.length, head: body.slice(0, 300), nearSold: body.slice(i, i + 800) }, { headers: { "Cache-Control": "no-store" } });
+    }
     if (url.pathname === "/api/refresh") { // manual check of one suburb, e.g. /api/refresh?slug=unley-sa-5061
       const slug = (url.searchParams.get("slug") || "").toLowerCase();
       if (!/^[a-z0-9-]{3,60}-sa-[0-9]{4}$/.test(slug)) return new Response("Use ?slug=unley-sa-5061", { status: 400 });
