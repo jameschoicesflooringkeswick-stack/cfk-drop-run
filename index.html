@@ -51,6 +51,7 @@ button{border:0;background:none;padding:0;cursor:pointer;-webkit-user-select:non
 
 .stop-pin{width:26px;height:26px;border-radius:50%;background:var(--blue);color:#fff;border:2.5px solid #fff;box-shadow:0 1px 5px rgba(0,0,0,.4);display:grid;place-items:center;font:800 13px/1 var(--rounded);cursor:pointer}
 .stop-pin.sel{width:34px;height:34px;font-size:15px}
+.stop-pin.done{background:var(--green);font-size:13px}
 .stop-pin.next{width:22px;height:22px;background:#fff;color:var(--blue);border:2px solid var(--blue);font-size:10px}
 .stop-pin.next.sel{width:32px;height:32px;font-size:13px}
 .hq-pin{padding:3px 6px;border-radius:6px;background:var(--fg);color:var(--card);font:800 10px var(--rounded);box-shadow:0 1px 4px rgba(0,0,0,.35);cursor:default}
@@ -504,10 +505,14 @@ function initMap(){
 function draw(){
   if(!map)return;const o=here();
   if(o.hq)meMarker.remove();else{meMarker.setLngLat([o.lng,o.lat]);if(!meMarker._map)meMarker.addTo(map);meMarker.getElement().classList.toggle("live",!!gps)}
-  const all=[...route,...nextUp.slice(0,80)],sig=all.map(h=>h.id).join("|")+"#"+selected;
+  const done=nearby().filter(h=>drops.has(h.id)).slice(0,150);
+  const all=[...route,...nextUp.slice(0,80)],sig=all.map(h=>h.id).join("|")+"#"+done.map(h=>h.id).join("|")+"#"+selected;
   if(sig!==draw.sig){draw.sig=sig;(draw.pins||[]).forEach(m=>m.remove());
-    draw.pins=[...all.entries()].reverse().map(([i,h])=>{const el=document.createElement("div");el.className="stop-pin"+(i>=route.length?" next":"")+(h.id===selected?" sel":"");el.textContent=i+1;
-      el.addEventListener("click",ev=>{ev.stopPropagation();openDetail(h.id)});return new maplibregl.Marker({element:el}).setLngLat([h.lng,h.lat]).addTo(map)})}
+    // dropped houses stay on the map as green ticks
+    const donePins=done.map(h=>{const el=document.createElement("div");el.className="stop-pin done"+(h.id===selected?" sel":"");el.innerHTML="✓";
+      el.addEventListener("click",ev=>{ev.stopPropagation();openDetail(h.id)});return new maplibregl.Marker({element:el}).setLngLat([h.lng,h.lat]).addTo(map)});
+    draw.pins=[...donePins,...[...all.entries()].reverse().map(([i,h])=>{const el=document.createElement("div");el.className="stop-pin"+(i>=route.length?" next":"")+(h.id===selected?" sel":"");el.textContent=i+1;
+      el.addEventListener("click",ev=>{ev.stopPropagation();openDetail(h.id)});return new maplibregl.Marker({element:el}).setLngLat([h.lng,h.lat]).addTo(map)})]}
   if(!mapReady&&!(map.isStyleLoaded&&map.isStyleLoaded()))return;
   if(!map.getSource("range")||!map.getLayer("range-line")){if(!draw.fix){draw.fix=setTimeout(()=>{draw.fix=0;if(map.isStyleLoaded())addLayers()},400)}return}
   const inR=nearby(),inSet=new Set(inR.map(h=>h.id)),order=new Map(route.map((h,i)=>[h.id,i]));
