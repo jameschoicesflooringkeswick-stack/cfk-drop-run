@@ -1,7 +1,6 @@
 // CFK Drop Run — serves the app, stores shared "dropped" ticks in KV (binding: DROPS),
-// and keeps recent sales fresh by itself: every 2 minutes a cron run reads the newest sold
-// listings for the next 2 suburbs on Domain and saves them in KV (key "sales:v1").
-import GROUPS from "./scripts/groups.json";
+// and keeps recent sales fresh by itself from PropTrack's licensed Listings API
+// (secrets PROPTRACK_KEY + PROPTRACK_SECRET). Sales are cached in KV under "sales:v1".
 const ID = /^[a-z0-9-]{1,160}$/;
 
 async function listDrops(env) {
@@ -29,137 +28,98 @@ async function setDrop(request, env) {
 }
 
 
-/* ---------- Automatic sales refresh ---------- */
-const SLUGS = [...Object.values(GROUPS.metro).flat(), ...Object.values(GROUPS.regional).flat()];
-const PER_RUN = 2, KEEP_DAYS = 120;
-const MON = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 };
+/* ---------- Automatic sales refresh: PropTrack Listings API ----------
+   Point & radius search (max 55 km) over a handful of points that cover SA's populated areas,
+   status=sold, newest first. First run backfills KEEP_DAYS; later runs only ask for sales since
+   the last run (minus a few days, because agents report sales late). */
+const KEEP_DAYS = 120, EVERY_MIN = 30;
+const PT_BASE = (env) => env.PROPTRACK_BASE || "https://data.proptrack.com";
+const PT_TOKEN = (env) => env.PROPTRACK_TOKEN_URL || PT_BASE(env) + "/oauth2/token";
+const POINTS = [ // [name, lat, lng, radius km]
+  ["Adelaide", -34.93, 138.60, 55], ["Gawler & Barossa", -34.55, 138.85, 40], ["Fleurieu", -35.50, 138.65, 40],
+  ["Murray Bridge & Hills", -35.10, 139.10, 40], ["Yorke & Copper Coast", -34.10, 137.80, 55], ["Mid North", -33.40, 138.30, 55],
+  ["Upper Spencer Gulf", -32.90, 137.70, 55], ["Riverland", -34.25, 140.55, 55], ["South East", -37.50, 140.60, 55],
+  ["Limestone Coast North", -36.60, 140.30, 55], ["Port Lincoln", -34.70, 135.85, 55], ["Kangaroo Island", -35.75, 137.50, 55],
+];
 const num = (v) => parseInt(String(v ?? "").replace(/[^0-9]/g, ""), 10) || 0;
-const unesc = (v) => { try { return JSON.parse('"' + v + '"'); } catch { return v; } };
-const field = (chunk, re) => { const m = chunk.match(re); return m ? unesc(m[1]) : ""; };
-
-// Pull sold listings out of a Domain search page without parsing the whole (large) page.
-function parseDomain(html) {
-  const out = [];
-  const parts = html.split('"listingModel":').slice(1);
-  for (const chunk0 of parts) {
-    const chunk = chunk0.slice(0, 6000);
-    const url = field(chunk, /"url":"([^"]+)"/);
-    const street = field(chunk, /"street":"([^"]*)"/);
-    const suburb = field(chunk, /"suburb":"([^"]*)"/);
-    const tag = field(chunk, /"tagText":"([^"]*)"/);
-    const d = tag.match(/(\d{1,2})\s+([A-Za-z]{3})[a-z]*\s+(\d{4})/);
-    if (!url || !street || !suburb || !d) continue;
-    const type = field(chunk, /"propertyType(?:Formatted)?":"([^"]*)"/) || "House";
-    if (/land|vacant/i.test(type)) continue;
-    const mm = MON[d[2].toLowerCase()]; if (!mm) continue;
-    const date = `${d[3]}-${String(mm).padStart(2, "0")}-${d[1].padStart(2, "0")}`;
-    const lat = parseFloat(field(chunk, /"lat":(-?[0-9.]+)/)), lng = parseFloat(field(chunk, /"lng":(-?[0-9.]+)/));
-    const priceTxt = field(chunk, /"price":"([^"]*)"/);
-    out.push({
-      addr: street.replace(/,\s*$/, "").trim(),
-      suburb: suburb.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase()),
-      type: /apartment|unit|flat/i.test(type) ? "Unit" : type.replace(/\b\w/g, (c) => c.toUpperCase()),
-      price: /\$\s*[0-9]/.test(priceTxt) ? num(priceTxt.split("-")[0]) : 0,
-      date,
-      bed: num(field(chunk, /"beds":([0-9]+)/)), bath: num(field(chunk, /"baths":([0-9]+)/)), car: num(field(chunk, /"parking":([0-9]+)/)),
-      url: url.startsWith("http") ? url : "https://www.domain.com.au" + url,
-      ...(lat && lng ? { lat, lng } : {}),
-    });
-  }
-  return out;
-}
-
-async function fetchSuburb(slug) {
-  const res = await fetch(`https://www.domain.com.au/sold-listings/${slug}/?sort=solddate-desc`, {
-    headers: {
-      "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1",
-      "Accept": "text/html,application/xhtml+xml", "Accept-Language": "en-AU,en;q=0.9",
-    },
-    cf: { cacheTtl: 0 },
-  });
-  if (!res.ok) return { slug, status: res.status, rows: [] };
-  const html = await res.text();
-  return { slug, status: res.status, rows: parseDomain(html), bytes: html.length };
-}
+const pick = (...v) => v.find((x) => x !== undefined && x !== null && x !== "");
+const day = (d) => d.toISOString().slice(0, 10);
+const title = (v) => String(v || "").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
 
 async function loadState(env) {
-  return (await env.DROPS.get("sales:v1", "json")) || { cursor: 0, sales: {}, log: [] };
+  return (await env.DROPS.get("sales:v1", "json")) || { sales: {}, log: [] };
 }
-
-async function refresh(env, slugs) {
-  const st = await loadState(env);
-  const list = slugs || Array.from({ length: PER_RUN }, (_, i) => SLUGS[(st.cursor + i) % SLUGS.length]);
-  const results = await Promise.all(list.map((s) => fetchSuburb(s).catch((e) => ({ slug: s, status: 0, rows: [], error: String(e).slice(0, 120) }))));
-  const cut = new Date(Date.now() - KEEP_DAYS * 864e5).toISOString().slice(0, 10);
-  let added = 0;
-  for (const r of results) for (const row of r.rows) { if (!st.sales[row.url]) added++; st.sales[row.url] = row; }
-  for (const [k, v] of Object.entries(st.sales)) if (v.date < cut) delete st.sales[k];
-  if (!slugs) st.cursor = (st.cursor + PER_RUN) % SLUGS.length;
-  st.updated = new Date().toISOString();
-  st.log = [{ t: st.updated, r: results.map((r) => ({ s: r.slug, h: r.status, n: r.rows.length, e: r.error })) }, ...(st.log || [])].slice(0, 40);
-  await env.DROPS.put("sales:v1", JSON.stringify(st));
-  return { added, results: results.map((r) => ({ slug: r.slug, status: r.status, found: r.rows.length, bytes: r.bytes, error: r.error })), total: Object.keys(st.sales).length };
+async function token(env, st) {
+  if (st.tok && st.tok.exp > Date.now() + 60e3) return st.tok.v;
+  const res = await fetch(PT_TOKEN(env), {
+    method: "POST",
+    headers: { "Authorization": "Basic " + btoa(env.PROPTRACK_KEY + ":" + env.PROPTRACK_SECRET), "Content-Type": "application/x-www-form-urlencoded" },
+    body: "grant_type=client_credentials",
+  });
+  const j = await res.json().catch(() => ({}));
+  if (!res.ok || !j.access_token) throw new Error("token " + res.status + " " + JSON.stringify(j).slice(0, 200));
+  st.tok = { v: j.access_token, exp: Date.now() + (j.expires_in || 3600) * 1000 };
+  return st.tok.v;
 }
-
-/* ---------- Domain official API (needs secret DOMAIN_API_KEY) ----------
-   Domain blocks its website from Cloudflare servers (403), but its developer API works.
-   Strategy: state-wide "Sold" search sorted newest first, 100 per page. Backfill walks back
-   120 days once; after that each run only reads pages until it reaches sales it already has. */
-const API = "https://api.domain.com.au/v1/listings/residential/_search";
-const pick = (...v) => v.find((x) => x !== undefined && x !== null && x !== "");
-function fromApi(item) {
-  const l = item.listing || item; const p = l.propertyDetails || {};
-  const sd = (l.saleDetails && (l.saleDetails.soldDetails || l.saleDetails)) || l.soldData || {};
-  const date = String(pick(sd.soldDate, sd.date, l.dateSold, l.soldDate, l.dateUpdated, "") || "").slice(0, 10);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !p.suburb) return null;
-  const type = String(pick(p.propertyType, (p.allPropertyTypes || [])[0], "House"));
+// Turn one PropTrack listing into the app's row. Field names follow PropTrack's docs; the
+// address/attributes objects are read defensively until we've seen a live response.
+function fromPropTrack(l) {
+  const a = l.address || {}, at = l.attributes || {};
+  if (!l.saleDate && !at.saleDate) return null;
+  const date = String(pick(l.saleDate, at.saleDate)).slice(0, 10);
+  const type = String(pick(at.propertyType, a.propertyType, l.propertyType, "house"));
   if (/land|vacant/i.test(type)) return null;
-  const street = [p.streetNumber, p.street].filter(Boolean).join(" ");
-  const addr = (p.unitNumber ? p.unitNumber + "/" : "") + (street || String(p.displayableAddress || "").split(",")[0]);
-  if (!/\d/.test(addr)) return null;
-  const priceTxt = String(pick(sd.soldPrice, sd.price, l.priceDetails && l.priceDetails.price, l.priceDetails && l.priceDetails.displayPrice, "") || "");
+  const street = pick(a.streetAddress, a.street, [a.streetNumber, a.streetName, a.streetType].filter(Boolean).join(" "), String(pick(a.fullAddress, a.displayAddress, "")).split(",")[0]);
+  const addr = (a.unitNumber && !String(street).includes("/") ? a.unitNumber + "/" : "") + String(street || "").trim();
+  const suburb = pick(a.suburb, a.suburbName, a.locality);
+  if (!/\d/.test(addr) || !suburb) return null;
+  const lat = +pick(a.latitude, a.lat, a.location && a.location.latitude, l.latitude), lng = +pick(a.longitude, a.lng, a.location && a.location.longitude, l.longitude);
   return {
-    addr, suburb: String(p.suburb).toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase()),
-    type: /apartment|unit|flat/i.test(type) ? "Unit" : type.replace(/([a-z])([A-Z])/g, "$1 $2"),
-    price: /[0-9]/.test(priceTxt) && !/withheld|contact/i.test(priceTxt) ? num(priceTxt.split("-")[0]) : 0,
-    date, bed: num(p.bedrooms), bath: num(p.bathrooms), car: num(p.carspaces),
-    url: "https://www.domain.com.au/" + String(pick(l.listingSlug, l.id, "")).replace(/^\//, ""),
-    ...(p.latitude && p.longitude ? { lat: +p.latitude, lng: +p.longitude } : {}),
+    addr, suburb: title(suburb), type: /unit|apartment|flat/i.test(type) ? "Unit" : title(type), date,
+    price: l.saleValueSuppressed ? 0 : num(pick(l.saleValue, at.saleValue)), // agent-advised sale value only; listingPrice may not be displayed
+    bed: num(pick(at.bedrooms, l.bedrooms)), bath: num(pick(at.bathrooms, l.bathrooms)), car: num(pick(at.carSpaces, at.carspaces, l.carSpaces)),
+    url: "https://www.realestate.com.au/" + l.listingId, src: "proptrack",
+    ...(lat && lng ? { lat, lng } : {}),
   };
 }
-async function apiPage(env, page) {
-  const res = await fetch(API, {
-    method: "POST",
-    headers: { "X-Api-Key": env.DOMAIN_API_KEY, "Content-Type": "application/json", "Accept": "application/json" },
-    body: JSON.stringify({ listingType: "Sold", locations: [{ state: "SA" }], pageSize: 100, pageNumber: page, sort: { sortKey: "SoldDate", direction: "Descending" } }),
-  });
-  const text = await res.text();
-  let data = null; try { data = JSON.parse(text); } catch {}
-  return { status: res.status, items: Array.isArray(data) ? data : [], sample: Array.isArray(data) && data[0] ? JSON.stringify(data[0]).slice(0, 1500) : text.slice(0, 300) };
-}
-async function refreshApi(env, force) {
-  const st = await loadState(env);
-  const api = st.api || (st.api = { page: 1, backfill: true, last: 0 });
-  if (!force && !api.backfill && Date.now() - api.last < 30 * 60e3) return null; // every 30 min once caught up
-  const cut = new Date(Date.now() - KEEP_DAYS * 864e5).toISOString().slice(0, 10);
-  const pages = api.backfill ? 8 : 4, log = [];
-  for (let i = 0; i < pages; i++) {
-    const r = await apiPage(env, api.page);
-    let added = 0, oldest = "9999";
-    for (const it of r.items) { const row = fromApi(it); if (!row) continue; if (row.date < oldest) oldest = row.date; if (!st.sales[row.url]) added++; st.sales[row.url] = row; }
-    log.push({ s: "api p" + api.page, h: r.status, n: r.items.length, a: added });
-    if (r.status !== 200) { api.sample = r.sample; break; }
-    if (api.page === 1) api.sample = r.sample;
-    const done = !r.items.length || oldest < cut || (!api.backfill && added === 0);
-    if (done) { api.page = 1; api.backfill = false; break; }
-    api.page++;
+async function searchPoint(env, tok, p, startDate, maxPages) {
+  const rows = [], meta = { s: p[0], h: 0, n: 0, pages: 0 };
+  let cursor = null;
+  for (let i = 0; i < maxPages; i++) {
+    const q = new URLSearchParams({ listingTypes: "sale", status: "sold", pointType: "latLong", latitude: p[1], longitude: p[2], radius: p[3] * 1000, sortBy: "dateDesc", startDate, endDate: day(new Date()), pageSize: 200 });
+    if (cursor) q.set("afterPageCursor", cursor);
+    const res = await fetch(PT_BASE(env) + "/api/v2/listings/search/point-and-radius?" + q, { headers: { "Authorization": "Bearer " + tok, "Accept": "application/json" } });
+    meta.h = res.status; meta.pages++;
+    const j = await res.json().catch(() => null);
+    if (!res.ok || !j) { meta.e = JSON.stringify(j).slice(0, 200); break; }
+    if (!meta.sample && j.listings && j.listings[0]) meta.sample = JSON.stringify(j.listings[0]).slice(0, 2000);
+    for (const l of j.listings || []) { const r = fromPropTrack(l); if (r) rows.push(r); }
+    meta.n += (j.listings || []).length;
+    if (!j.pageInfo || !j.pageInfo.hasNextPage) break;
+    cursor = j.pageInfo.pageEndCursor;
   }
-  api.last = Date.now();
+  return { rows, meta };
+}
+async function refresh(env, force) {
+  const st = await loadState(env);
+  if (!force && st.lastRun && Date.now() - st.lastRun < EVERY_MIN * 60e3) return null;
+  const first = !st.lastRun;
+  const since = day(new Date(first ? Date.now() - KEEP_DAYS * 864e5 : st.lastRun - 7 * 864e5));
+  let tok, log = [], added = 0;
+  try { tok = await token(env, st); } catch (e) { log.push({ s: "auth", h: 0, e: String(e).slice(0, 200) }); }
+  if (tok) for (const p of POINTS) {
+    const { rows, meta } = await searchPoint(env, tok, p, since, first ? 25 : 5).catch((e) => ({ rows: [], meta: { s: p[0], h: 0, e: String(e).slice(0, 200) } }));
+    for (const r of rows) { if (!st.sales[r.url]) added++; st.sales[r.url] = r; }
+    if (meta.sample) { st.sample = meta.sample; delete meta.sample; }
+    log.push(meta);
+  }
+  const cut = day(new Date(Date.now() - KEEP_DAYS * 864e5));
   for (const [k, v] of Object.entries(st.sales)) if (v.date < cut) delete st.sales[k];
+  if (tok && log.every((m) => m.h === 200)) st.lastRun = Date.now();
   st.updated = new Date().toISOString();
-  st.log = [{ t: st.updated, r: log }, ...(st.log || [])].slice(0, 40);
+  st.log = [{ t: st.updated, added, r: log }, ...(st.log || [])].slice(0, 30);
   await env.DROPS.put("sales:v1", JSON.stringify(st));
-  return { log, total: Object.keys(st.sales).length };
+  return { added, total: Object.keys(st.sales).length, log };
 }
 
 export default {
@@ -177,26 +137,14 @@ export default {
     }
     if (url.pathname === "/api/status") {
       const st = env.DROPS ? await loadState(env) : {};
-      const recent = Object.values(st.sales || {}).filter((s) => s.date >= new Date(Date.now() - 7 * 864e5).toISOString().slice(0, 10)).length;
-      return Response.json({ apiKey: !!env.DOMAIN_API_KEY, api: st.api ? { page: st.api.page, backfill: st.api.backfill, last: st.api.last } : null, sample: url.searchParams.has("sample") && st.api ? st.api.sample : undefined, updated: st.updated || null, cursor: st.cursor, suburbs: SLUGS.length, sales: Object.keys(st.sales || {}).length, soldLast7Days: recent, log: (st.log || []).slice(0, 15) }, { headers: { "Cache-Control": "no-store" } });
+      const wk = day(new Date(Date.now() - 7 * 864e5));
+      return Response.json({ connected: !!(env.PROPTRACK_KEY && env.PROPTRACK_SECRET), updated: st.updated || null, lastRun: st.lastRun || null,
+        sales: Object.keys(st.sales || {}).length, soldLast7Days: Object.values(st.sales || {}).filter((s) => s.date >= wk).length,
+        sample: url.searchParams.has("sample") ? st.sample : undefined, log: (st.log || []).slice(0, 10) }, { headers: { "Cache-Control": "no-store" } });
     }
-    if (url.pathname === "/api/probe") { // diagnostics: can this server reach a listings site?
-      const u = url.searchParams.get("u") || "";
-      let t; try { t = new URL(u); } catch { return new Response("bad url", { status: 400 }); }
-      if (!/^(www\.)?(domain\.com\.au|homely\.com\.au|realestate\.com\.au|api\.domain\.com\.au|onthehouse\.com\.au|property\.com\.au)$/.test(t.hostname)) return new Response("host not allowed", { status: 400 });
-      const r = await fetch(t, { headers: { "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15", "Accept": "text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.8", "Accept-Language": "en-AU,en;q=0.9" } }).catch((e) => ({ status: 0, text: async () => String(e) }));
-      const body = await r.text();
-      const i = Math.max(0, body.search(/[Ss]old/));
-      return Response.json({ status: r.status, bytes: body.length, head: body.slice(0, 300), nearSold: body.slice(i, i + 800) }, { headers: { "Cache-Control": "no-store" } });
-    }
-    if (url.pathname === "/api/refresh-api") {
-      if (!env.DOMAIN_API_KEY) return new Response("DOMAIN_API_KEY not set", { status: 503 });
-      return Response.json(await refreshApi(env, true), { headers: { "Cache-Control": "no-store" } });
-    }
-    if (url.pathname === "/api/refresh") { // manual check of one suburb, e.g. /api/refresh?slug=unley-sa-5061
-      const slug = (url.searchParams.get("slug") || "").toLowerCase();
-      if (!/^[a-z0-9-]{3,60}-sa-[0-9]{4}$/.test(slug)) return new Response("Use ?slug=unley-sa-5061", { status: 400 });
-      return Response.json(await refresh(env, [slug]), { headers: { "Cache-Control": "no-store" } });
+    if (url.pathname === "/api/refresh") {
+      if (!env.PROPTRACK_KEY || !env.PROPTRACK_SECRET) return new Response("PropTrack keys not set", { status: 503 });
+      return Response.json(await refresh(env, true), { headers: { "Cache-Control": "no-store" } });
     }
     // sales.json must never be cached stale
     const res = await env.ASSETS.fetch(request);
@@ -208,6 +156,6 @@ export default {
     return res;
   },
   async scheduled(event, env, ctx) {
-    if (env.DROPS && env.DOMAIN_API_KEY) ctx.waitUntil(refreshApi(env, false));
+    if (env.DROPS && env.PROPTRACK_KEY && env.PROPTRACK_SECRET) ctx.waitUntil(refresh(env, false));
   },
 };
