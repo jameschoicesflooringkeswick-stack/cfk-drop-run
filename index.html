@@ -89,6 +89,8 @@ button{border:0;background:none;padding:0;cursor:pointer;-webkit-user-select:non
 .days b{font-size:12px;color:var(--fg);font-weight:600;font-variant-numeric:tabular-nums}
 .days i{max-width:28px}
 .nameIn{height:48px;border-radius:12px;border:0;background:var(--fill);padding:0 14px;font-size:17px;color:var(--fg);outline:none}
+.pulse{position:absolute;left:12px;top:calc(10px + env(safe-area-inset-top,0px));z-index:5;border-radius:12px;padding:7px 11px 6px;display:grid;grid-template-columns:auto auto;column-gap:5px;align-items:baseline;text-align:left;color:var(--fg);font:500 12px var(--font)}
+.pulse[hidden]{display:none}.pulse b{font:800 17px var(--rounded);letter-spacing:-.02em}.pulse span{color:var(--fg2)}.pulse small{grid-column:1/-1;font-size:11px;color:var(--fg2)}.pulse small.new{color:var(--green);font-weight:600}
 .mbtns{position:absolute;right:12px;top:calc(10px + env(safe-area-inset-top,0px));z-index:5;display:flex;flex-direction:column;border-radius:12px;overflow:hidden}
 .mbtns button{width:44px;height:44px;display:grid;place-items:center;color:var(--blue)}
 .mbtns button+button{border-top:.5px solid var(--sep)}
@@ -191,6 +193,7 @@ button{border:0;background:none;padding:0;cursor:pointer;-webkit-user-select:non
 <div class="app" id="app">
   <div id="map" aria-label="Map of recent sales"></div>
   <div class="scrim"></div>
+  <button class="pulse glass" id="pulse" hidden aria-label="Sales summary"><b id="pulseN">0</b><span id="pulseT">sold · 5 wks</span><small id="pulseU"></small></button>
   <button class="statsfab glass" id="statsBtn" hidden aria-label="Team stats"><svg viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="12" width="4" height="8" rx="1"/><rect x="10" y="6" width="4" height="14" rx="1"/><rect x="16" y="9" width="4" height="11" rx="1"/></svg><span>Stats</span></button>
   <div class="mbtns glass"><button id="fitBtn" aria-label="Show all nearby"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
     <button id="zIn" aria-label="Zoom in"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
@@ -270,7 +273,7 @@ const I={
 /* ---------- Data ---------- */
 function toHomes(rows){return rows.map((s,i)=>{if(!s.addr||!s.suburb||!s.date||/land|vacant/i.test(s.type||""))return null;
   const sub=s.suburb.replace(/\b\w/g,c=>c.toUpperCase()),c=SUB[sub.toUpperCase()];if(!c)return null;const id=keyOf(s.addr,sub);
-  return{id,addr:s.addr,suburb:sub,type:/apartment|unit|flat/i.test(s.type||"")?"Unit":(s.type||"House"),price:+s.price||0,date:s.date,bed:+s.bed||0,bath:+s.bath||0,car:+s.car||0,url:s.url,
+  return{id,addr:s.addr,suburb:sub,type:/apartment|unit|flat/i.test(s.type||"")?"Unit":(s.type||"House"),price:+s.price||0,date:s.date,bed:+s.bed||0,bath:+s.bath||0,car:+s.car||0,url:s.url,approx:!!s.approx,
     lat:+s.lat||c[0]+jit(id.length*7+i)*.0085,lng:+s.lng||c[1]+jit(id.length*3+i+7)*.0095}}).filter(Boolean)}
 const h0=b=>(b.sales||[]).length;
 async function loadSales(){
@@ -281,7 +284,7 @@ async function loadSales(){
   S.problems=live&&!b?[{level:"error",msg:"Can't reach the app's server, so sales can't load. Check your internet, or the Cloudflare worker."}]:(b&&b.problems)||[];if(!b||!h0(b))render();
   const by=new Map();for(const j of[a,b])for(const x of(j&&j.sales)||[])if(x&&x.addr){const k=(x.addr+"|"+x.suburb).toLowerCase();const o=by.get(k);by.set(k,o?{...o,...x,date:o.approx&&!x.approx?x.date:(x.approx?o.date:x.date)}:x)}
   const h=toHomes([...by.values()]);
-  if(h.length){const seen=new Set();homes=h.filter(x=>!seen.has(x.id)&&seen.add(x.id));S.updated=[a&&a.updated,b&&b.updated&&b.updated.slice(0,10)].filter(Boolean).sort().pop();render();fit()}
+  if(h.length){const seen=new Set();homes=h.filter(x=>!seen.has(x.id)&&seen.add(x.id));S.updated=[a&&a.updated,b&&b.updated&&b.updated.slice(0,10)].filter(Boolean).sort().pop();S.updatedAt=b&&b.updated;render();fit()}
 }
 /* Shared drop ticks so the team doesn't double up (falls back to this phone only) */
 let dropApi=false,dropInfo=new Map(),myName=store.get("dr4-name","");
@@ -375,6 +378,12 @@ function goUrl(stops){const s=stops.slice(0,10),dest=s[s.length-1],w=s.slice(0,-
   let u=`https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=${addrQ(dest)}`;if(w.length)u+=`&waypoints=${w.map(addrQ).join("%7C")}`;return u}
 
 /* ---------- Render ---------- */
+function ago2(iso){if(!iso)return"";const m=Math.round((Date.now()-Date.parse(iso))/60e3);return m<1?"just now":m<60?m+"m ago":m<1440?Math.round(m/60)+"h ago":Math.round(m/1440)+"d ago"}
+function renderPulse(){const el=$("pulse");if(!homes.length){el.hidden=true;return}
+  const cut=daysAgo(35),today=daysAgo(0),wk=daysAgo(7),n=homes.filter(h=>h.date>=cut).length,t=homes.filter(h=>h.date>=today&&!h.approx).length,w=homes.filter(h=>h.date>=wk).length;
+  el.hidden=false;$("pulseN").textContent=n.toLocaleString();
+  const u=$("pulseU");u.className=t?"new":"";u.textContent=(t?`+${t} new today`:`${w} this week`)+(S.updatedAt?` · ${ago2(S.updatedAt)}`:"")}
+setInterval(()=>{if(!document.hidden&&homes.length)renderPulse()},60e3);
 function render(){
   const o=here();render.last={lat:o.lat,lng:o.lng};
   document.querySelectorAll(".seg button").forEach(b=>b.setAttribute("aria-pressed",+b.dataset.days===S.days));
@@ -394,6 +403,7 @@ function render(){
     <span class="num">${dn?I.check.replace("<svg",'<svg width="15" height="15"'):i+1}</span>
     <span class="rt"><b>${esc(h.addr)}</b><span>${dn&&dropInfo.get(h.id)?.n?`Dropped by ${esc(dropInfo.get(h.id).n)} · ${agoT(dropInfo.get(h.id).t)}`:`${dist(km(o,h))} · ${esc(h.suburb)} · ${ago(h.date)}`}</span></span>
     <button class="tick" data-tick="${h.id}" aria-label="${dn?"Undo drop":"Mark dropped"}">${I.check}</button></div>`};
+  renderPulse();
   let html="";
   if(S.problems&&S.problems.length)html+=`<div class="probs">${S.problems.map(p=>`<div class="prob ${p.level}"><b>${p.level==="error"?"Not updating":"Heads up"}</b>${esc(p.msg)}</div>`).join("")}</div>`;
   if(!homes.length)html+=`<div class="empty"><b>${S.problems&&S.problems.length?"No sales to show":"Loading sales…"}</b></div>`;
