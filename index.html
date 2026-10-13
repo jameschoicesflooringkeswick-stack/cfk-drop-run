@@ -45,6 +45,8 @@ button{border:0;background:none;padding:0;cursor:pointer;-webkit-user-select:non
 .maplibregl-ctrl-bottom-right{bottom:auto;top:calc(60px + env(safe-area-inset-top,0px))}
 .stop-pin{width:26px;height:26px;border-radius:50%;background:var(--blue);color:#fff;border:2.5px solid #fff;box-shadow:0 1px 5px rgba(0,0,0,.4);display:grid;place-items:center;font:800 13px/1 var(--rounded);cursor:pointer}
 .stop-pin.sel{width:34px;height:34px;font-size:15px}
+.stop-pin.next{width:22px;height:22px;background:#fff;color:var(--blue);border:2px solid var(--blue);font-size:10px}
+.stop-pin.next.sel{width:32px;height:32px;font-size:13px}
 .hq-pin{padding:3px 6px;border-radius:6px;background:var(--fg);color:var(--card);font:800 10px var(--rounded);box-shadow:0 1px 4px rgba(0,0,0,.35);cursor:default}
 .me-dot{width:22px;height:22px;border-radius:50%;background:#fff;box-shadow:0 1px 6px rgba(0,0,0,.4);display:grid;place-items:center;position:relative}
 .me-dot i{width:15px;height:15px;border-radius:50%;background:var(--blue)}
@@ -222,7 +224,7 @@ const RADII=[3,5,10];
 
 const store={get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
 const S={days:store.get("dr4-days",31),rad:store.get("dr4-rad",3),loc:store.get("dr4-loc",null)};
-let homes=[],drops=new Set(store.get("dr4-drops",[])),dbRef=null,gps=null,watchId=null,selected=null,route=[];
+let nextUp=[],homes=[],drops=new Set(store.get("dr4-drops",[])),dbRef=null,gps=null,watchId=null,selected=null,route=[];
 const $=id=>document.getElementById(id);
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"})[c]);
 const money=n=>!n?"Undisclosed":n>=1e6?"$"+(n/1e6).toFixed(2).replace(/0$/,"")+"M":"$"+Math.round(n/1000)+"k";
@@ -341,7 +343,7 @@ function render(){
   $("gpsBtn").classList.toggle("on",!!gps);if(gps)$("gpsTxt").textContent="Live";
   $("whereIn").placeholder=gps?"Your location · type to change":S.loc?`${S.loc.name} · type to change`:"Where are you?";
   const all=nearby().sort((a,b)=>km(o,a)-km(o,b)),todo=all.filter(h=>!drops.has(h.id)),done=all.filter(h=>drops.has(h.id));
-  route=plan(o,todo.slice(0,30)).slice(0,10);const rIds=new Set(route.map(h=>h.id)),later=todo.filter(h=>!rIds.has(h.id));
+  route=plan(o,todo.slice(0,10));const later=todo.slice(10);nextUp=later;
   const place=gps?"you":S.loc?S.loc.name:"CFK";
   $("sumTxt").textContent=all.length?`${all.length} sold near ${place}`:`Nothing near ${place}`;
   $("radBtn").textContent=`Within ${S.rad} km`;
@@ -437,9 +439,9 @@ function draw(){
   map.getSource("others").setData(fc(pool().filter(h=>!inSet.has(h.id)).map(h=>pt(h,{id:h.id}))));
   map.getSource("drops").setData(fc(inR.filter(h=>drops.has(h.id)).map(h=>pt(h,{id:h.id}))));
   map.getSource("stops").setData(EMPTY);
-  const sig=route.map(h=>h.id).join("|")+"#"+selected;
+  const all=[...route,...nextUp.slice(0,80)],sig=all.map(h=>h.id).join("|")+"#"+selected;
   if(sig!==draw.sig){draw.sig=sig;(draw.pins||[]).forEach(m=>m.remove());
-    draw.pins=[...route.entries()].reverse().map(([i,h])=>{const el=document.createElement("div");el.className="stop-pin"+(h.id===selected?" sel":"");el.textContent=i+1;
+    draw.pins=[...all.entries()].reverse().map(([i,h])=>{const el=document.createElement("div");el.className="stop-pin"+(i>=route.length?" next":"")+(h.id===selected?" sel":"");el.textContent=i+1;
       el.addEventListener("click",ev=>{ev.stopPropagation();openDetail(h.id)});return new maplibregl.Marker({element:el}).setLngLat([h.lng,h.lat]).addTo(map)})}
 }
 function sheetPad(){const wide=innerWidth>=860,t=$("app").querySelector(".brand").getBoundingClientRect().bottom;return{top:t+16,left:wide?410:30,right:30,bottom:wide?30:Math.min($("sheet").offsetHeight+20,innerHeight*.6)}}
