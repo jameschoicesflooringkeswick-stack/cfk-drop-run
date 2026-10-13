@@ -216,11 +216,6 @@ button{border:0;background:none;padding:0;cursor:pointer;-webkit-user-select:non
     <div class="ptop"><h2>Team stats</h2><button class="close" id="statsClose" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" width="12" height="12"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
     <div class="seg" id="statsSeg"><button data-p="week">Week</button><button data-p="month">Year by month</button><button data-p="all">All years</button></div>
     <div id="statsBody"></div></div></div>
-  <div class="overlay" id="nameSheet" hidden><div class="panel" role="dialog" aria-label="Your name">
-    <div class="ptop"><h2>Who's dropping?</h2></div>
-    <p style="margin:0;color:var(--fg2);font-size:15px">Your name goes on the drops you tick, so the team stats add up. You only do this once on this phone.</p>
-    <input class="nameIn" id="nameIn" placeholder="First name" autocomplete="given-name" maxlength="30">
-    <button class="go" id="nameSave" style="border:0">Save</button></div></div>
   <div class="sov" id="sov" hidden><div class="sovtop"><label class="where" style="flex:1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg><input id="sovIn" type="search" placeholder="Type a suburb" autocomplete="off" autocorrect="off" autocapitalize="words" enterkeyhint="search"></label><button id="sovX">Cancel</button></div><div class="sovlist" id="sovList"></div></div>
   <div class="toast glass" id="toast"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--green)"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span id="toastMsg">Dropped</span></div>
 </div>
@@ -284,11 +279,7 @@ async function connectDrops(){
     const pull=async()=>{try{const r=await fetch("/api/drops",{cache:"no-store"});if(!r.ok)return;const j=await r.json();if(Array.isArray(j)){dropApi=true;const list=j.map(x=>typeof x==="string"?{id:x}:x);drops=new Set(list.map(x=>x.id));dropInfo=new Map(list.map(x=>[x.id,x]));store.set("dr4-drops",[...drops]);$("statsBtn").hidden=false;render();if(!$("stats").hidden)renderStats()}}catch(e){}};
     pull();setInterval(()=>{if(!document.hidden)pull()},30000);document.addEventListener("visibilitychange",()=>{if(!document.hidden)pull()})}
 }
-function askName(){return new Promise(res=>{const el=$("nameSheet");el.hidden=false;const inp=$("nameIn");inp.value=myName;setTimeout(()=>inp.focus(),50);
-  const done=()=>{const v=inp.value.trim().slice(0,30);if(!v){inp.focus();return}myName=v;store.set("dr4-name",v);el.hidden=true;$("nameSave").onclick=null;res(v)};
-  $("nameSave").onclick=done;inp.onkeydown=e=>{if(e.key==="Enter")done()}})}
 async function toggleDrop(id){
-  if(dropApi&&!drops.has(id)&&!myName)await askName();
   const was=drops.has(id);was?drops.delete(id):drops.add(id);store.set("dr4-drops",[...drops]);
   if(!was){dropInfo.set(id,{id,n:myName,t:Date.now()});toast("Dropped");navigator.vibrate&&navigator.vibrate(12)}else dropInfo.delete(id);render();
   if(dbRef){try{was?await dbRef.doc(id).delete():await dbRef.doc(id).set({at:new Date().toISOString()})}catch(e){}}
@@ -320,11 +311,9 @@ function renderStats(){
   const by=k=>{const m=new Map();rows.forEach(r=>{const v=r[k]||"Unknown";m.set(v,(m.get(v)||0)+1)});return[...m.entries()].sort((a,b)=>b[1]-a[1])};
   const people=by("n"),subs=by("s").slice(0,8),mx=Math.max(1,...cols.map(c=>c[1])),pm=Math.max(1,...people.map(p=>p[1])),sm=Math.max(1,...subs.map(p=>p[1]));
   const bars=(list,max)=>list.length?`<div class="bars">${list.map(([k,v])=>`<div class="bar"><em>${esc(k)}</em><span class="track"><i style="width:${Math.max(4,v/max*100)}%"></i></span><b>${v}</b></div>`).join("")}</div>`:`<div class="bars"><div class="empty" style="padding:16px 0">No drops ${label}</div></div>`;
-  $("statsBody").innerHTML=`<div class="big"><div><b>${rows.length}</b><span>flyers dropped ${label}</span></div><div><b>${people.length}</b><span>people dropping</span></div></div>
+  $("statsBody").innerHTML=`<div class="big"><div><b>${rows.length}</b><span>flyers dropped ${label}</span></div><div><b>${by("s").length}</b><span>suburbs covered</span></div></div>
     <section class="sblock"><h3>${title}</h3><div class="days">${cols.map(([l,v,cur])=>`<div>${v?`<b>${v}</b>`:""}<i style="height:${v/mx*78}%;${cur?"":"opacity:.55"}"></i><span style="${cur?"color:var(--fg);font-weight:700":""}">${l}</span></div>`).join("")}</div></section>
-    <section class="sblock"><h3>By person</h3>${bars(people,pm)}</section>
-    <section class="sblock"><h3>Top suburbs</h3>${bars(subs,sm)}</section>
-    ${myName?`<button class="more" id="renameBtn">You're dropping as ${esc(myName)} · change</button>`:""}`;
+    <section class="sblock"><h3>Top suburbs</h3>${bars(subs,sm)}</section>`;
 }
 
 /* ---------- Where ---------- */
@@ -531,7 +520,7 @@ document.addEventListener("click",e=>{if(!e.target.closest(".where,#sugg"))$("su
 $("fitBtn").onclick=fit;
 $("statsBtn").onclick=()=>{$("stats").hidden=false;renderStats()};
 $("statsClose").onclick=()=>{$("stats").hidden=true};
-$("stats").addEventListener("click",e=>{if(e.target.id==="stats")$("stats").hidden=true;const b=e.target.closest("[data-p]");if(b){statsP=b.dataset.p;renderStats()}if(e.target.closest("#renameBtn"))askName().then(renderStats)});
+$("stats").addEventListener("click",e=>{if(e.target.id==="stats")$("stats").hidden=true;const b=e.target.closest("[data-p]");if(b){statsP=b.dataset.p;renderStats()}});
 $("zIn").onclick=()=>map&&map.zoomIn();$("zOut").onclick=()=>map&&map.zoomOut();
 $("scroll").addEventListener("click",e=>{const t=e.target.closest("[data-tick]");if(t){e.stopPropagation();toggleDrop(t.dataset.tick);return}const r=e.target.closest(".row");if(r)openDetail(r.dataset.id)});
 $("scroll").addEventListener("keydown",e=>{if((e.key==="Enter"||e.key===" ")&&e.target.classList.contains("row")){e.preventDefault();openDetail(e.target.dataset.id)}});
