@@ -4,7 +4,7 @@ Map of recently sold homes across South Australia for Choices Flooring Keswick f
 
 - `index.html` — the app (live GPS, week/fortnight/month filter, best-route planning)
 - `sales.json` — recent sales, refreshed nightly by a scheduled task
-- `roads-*.json` — street data, © Government of South Australia (CC BY 3.0 AU)
+- Map: OpenFreeMap / OpenMapTiles / © OpenStreetMap contributors
 - `functions/api/drops.js` — shared "dropped" ticks, stored in Cloudflare KV
 
 ## Cloudflare Pages setup (once)
