@@ -354,14 +354,14 @@ function render(){
   $("gpsBtn").classList.toggle("on",!!gps);if(gps)$("gpsTxt").textContent="Live";
   $("whereIn").placeholder=gps?"Your location · tap to change":S.loc?`${S.loc.pin?"Near ":""}${S.loc.name} · tap to change`:"Where are you?";
   const all=nearby().sort((a,b)=>km(o,a)-km(o,b)),todo=all.filter(h=>!drops.has(h.id)),done=all.filter(h=>drops.has(h.id));
-  route=plan(o,todo.slice(0,10));const later=todo.slice(10);nextUp=later;
+  route=plan(o,todo.slice(0,150));const later=todo.slice(150);nextUp=later;
   const place=gps?"you":S.loc?S.loc.name:"CFK";
   $("sumTxt").textContent=all.length?`${all.length} sold near ${place}`:`Nothing near ${place}`;
   $("radBtn").textContent=`Within ${S.rad} km`;
   let d=0,p=o;route.forEach(h=>{d+=km(p,h);p=h});const mins=Math.round(d*1.35/30*60+route.length*1.5);
   const go=$("goBtn");
   if(route.length){go.removeAttribute("aria-disabled");go.href=goUrl(route);go.target="_blank";go.rel="noopener";
-    go.innerHTML=`${I.car}<span>${route.length===1?"Go to it":"Start route 1–"+route.length} <small>· ${route.length} stop${route.length>1?"s":""} · ${mins>=60?Math.floor(mins/60)+" hr "+(mins%60)+" min":mins+" min"}</small></span>`}
+    go.innerHTML=`${I.car}<span>${route.length===1?"Go to it":route.length<=10?"Start route":"Start stops 1–10"} <small>· ${route.length} stop${route.length>1?"s":""} · ${mins>=60?Math.floor(mins/60)+" hr "+(mins%60)+" min":mins+" min"}</small></span>`}
   else{go.setAttribute("aria-disabled","true");go.removeAttribute("href");go.innerHTML=`${I.check}<span>${all.length?"All dropped here":"No stops"}</span>`}
   const row=(h,i)=>{const dn=drops.has(h.id);return`<div class="row ${dn?"done":""}" data-id="${h.id}" role="button" tabindex="0">
     <span class="num">${dn?I.check.replace("<svg",'<svg width="15" height="15"'):i+1}</span>
@@ -371,7 +371,8 @@ function render(){
   if(!homes.length)html=`<div class="empty"><b>Loading sales…</b></div>`;
   else if(!all.length)html=`<div class="empty"><b>No sales in range</b>Try Month, a bigger distance, or a different suburb.</div>`;
   else{if(route.length)html+=`<div class="list">${route.map(row).join("")}</div>`;
-    if(later.length)html+=`<div class="cap">Next run · ${later.length}</div><div class="list">${later.map((h,i)=>row(h,route.length+i)).join("")}</div>`;
+    if(route.length>10)html+=`<div class="cap" style="text-transform:none;letter-spacing:0;font-weight:500">Google Maps takes 10 stops at a time. Tick them off and the next 10 load.</div>`;
+    if(later.length)html+=`<div class="cap">Further out · ${later.length}</div><div class="list">${later.map((h,i)=>row(h,route.length+i)).join("")}</div>`;
     if(done.length)html+=`<div class="cap">Dropped · ${done.length}</div><div class="list">${done.map(row).join("")}</div>`}
   html+=`<div class="foot">${S.updated?`Sales updated ${new Date(S.updated+"T12:00:00").toLocaleDateString("en-AU",{day:"numeric",month:"short"})} · `:""}Map © OpenFreeMap, OpenMapTiles, OpenStreetMap</div>`;
   $("scroll").innerHTML=html;
