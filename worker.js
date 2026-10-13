@@ -158,6 +158,11 @@ async function crawlAgencies(env, force) {
   const cut = day(new Date(Date.now() - KEEP_DAYS * 864e5));
   for (const [k, v] of Object.entries(st.rows)) if (v.date < cut) delete st.rows[k];
   st.updated = new Date().toISOString();
+  const site = st.sites[src.id] ||= {};
+  site.lastRun = Date.now(); site.lastStatus = status;
+  if (found > 0) { site.lastOk = Date.now(); site.fails = 0; } else site.fails = (site.fails || 0) + 1;
+  if (added > 0) site.lastNew = Date.now();
+  site.skip = typeof status === "string" ? status : null;
   st.log = [{ t: st.updated, s: src.id, p: u, h: status, n: found, a: added, g: geo }, ...(st.log || [])].slice(0, 30);
   await env.DROPS.put("agency:v1", JSON.stringify(st));
   return st.log[0];
@@ -257,6 +262,23 @@ async function refresh(env, force) {
   return { added, total: Object.keys(st.sales).length, log };
 }
 
+// Plain-English problems for the app to show, so nobody has to dig to find out what's wrong.
+function health(ag) {
+  const out = [], now = Date.now(), d = (t) => t ? new Date(t).toLocaleDateString("en-AU", { day: "numeric", month: "short", timeZone: "Australia/Adelaide" }) : "never";
+  const NAME = { klemich: "Klemich", magain: "Magain" };
+  if (!ag.updated || now - Date.parse(ag.updated) > 3 * 3600e3) out.push({ level: "error", msg: `Background updater hasn't run since ${d(ag.updated && Date.parse(ag.updated))}. Check the Cloudflare worker's cron trigger.` });
+  for (const a of AGENCIES) {
+    const s = (ag.sites || {})[a.id] || {}, n = NAME[a.id] || a.id;
+    if (s.blockedUntil && now < s.blockedUntil) out.push({ level: "error", msg: `${n}: their website is blocking our reader (error ${s.lastStatus || "?"}). Paused until ${d(s.blockedUntil)} — we never get around blocks.` });
+    else if (s.skip && /robots/.test(s.skip)) out.push({ level: "error", msg: `${n}: their robots.txt now says no to automated reading, so we've stopped (legal).` });
+    else if ((s.fails || 0) >= 3 && s.lastStatus === 200) out.push({ level: "error", msg: `${n}: website layout seems to have changed — no houses read since ${d(s.lastOk)}. The reader needs updating.` });
+    else if ((s.fails || 0) >= 3) out.push({ level: "error", msg: `${n}: can't reach their website (${s.lastStatus || "no response"}). No houses read since ${d(s.lastOk)}.` });
+    else if (s.lastOk && now - s.lastOk > 2 * 864e5) out.push({ level: "warn", msg: `${n}: nothing read since ${d(s.lastOk)}.` });
+    else if (s.lastNew && now - s.lastNew > 7 * 864e5) out.push({ level: "warn", msg: `${n}: no new sold houses for a week (since ${d(s.lastNew)}).` });
+  }
+  return out;
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -270,7 +292,7 @@ export default {
       const st = env.DROPS ? await loadState(env) : { sales: {} };
       const ag = env.DROPS ? (await env.DROPS.get("agency:v1", "json")) || { rows: {} } : { rows: {} };
       const agRows = Object.values(ag.rows).map(({ seen, geoTried, ...r }) => ({ ...r, url: r.url || "" }));
-      return Response.json({ updated: [st.updated, ag.updated].filter(Boolean).sort().pop() || null, sales: [...Object.values(st.sales), ...agRows] }, { headers: { "Cache-Control": "no-store" } });
+      return Response.json({ updated: [st.updated, ag.updated].filter(Boolean).sort().pop() || null, problems: health(ag), sales: [...Object.values(st.sales), ...agRows] }, { headers: { "Cache-Control": "no-store" } });
     }
     if (url.pathname === "/api/status") {
       const st = env.DROPS ? await loadState(env) : {};
