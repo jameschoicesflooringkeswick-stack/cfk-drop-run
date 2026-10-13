@@ -203,7 +203,7 @@ button{border:0;background:none;padding:0;cursor:pointer;-webkit-user-select:non
         </label>
         <div class="sugg" id="sugg" hidden></div>
         <div class="seg" role="group" aria-label="Sold in the last">
-          <button data-days="7">Week</button><button data-days="14">Fortnight</button><button data-days="31">Month</button>
+          <button data-days="7">This week</button><button data-days="21">1–3 weeks</button><button data-days="35">3–5 weeks</button>
         </div>
         <div class="summary"><h2 id="sumTxt">Nearby</h2><button id="radBtn"></button></div>
         <a class="go" id="goBtn"></a>
@@ -237,7 +237,7 @@ const HQ={name:"CFK, Keswick",lat:-34.9433,lng:138.5762,hq:true};
 const RADII=[3,5,10,20];
 
 const store={get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
-const S={days:store.get("dr4-days",31),rad:store.get("dr4-rad",3),loc:store.get("dr4-loc",null)};
+const S={days:[7,21,35].includes(store.get("dr4-days",7))?store.get("dr4-days",7):7,rad:store.get("dr4-rad",3),loc:store.get("dr4-loc",null)};
 let nextUp=[],homes=[],drops=new Set(store.get("dr4-drops",[])),dbRef=null,gps=null,watchId=null,selected=null,route=[];
 const $=id=>document.getElementById(id);
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"})[c]);
@@ -341,7 +341,8 @@ function suggest(){const q=$("whereIn").value.trim().toLowerCase();if(!q){$("sug
     return`<button data-sub="${esc(n)}">${esc(n)}<span>${cnt} sold nearby</span></button>`}).join("");$("sugg").hidden=false}
 
 /* ---------- Route (background) ---------- */
-function pool(){const cut=daysAgo(S.days);return homes.filter(h=>h.date>=cut)}
+const BANDS={7:0,21:7,35:21};
+function pool(){if(!(S.days in BANDS))S.days=7;const from=daysAgo(S.days),to=BANDS[S.days]?daysAgo(BANDS[S.days]):"9999";return homes.filter(h=>h.date>=from&&h.date<to)}
 function nearby(){const o=here();return pool().filter(h=>km(o,h)<=S.rad)}
 function plan(start,pts){if(!pts.length)return[];let left=pts.slice(),out=[],cur=start;
   while(left.length){let bi=0,bd=1e9;left.forEach((p,i)=>{const d=km(cur,p);if(d<bd){bd=d;bi=i}});cur=left.splice(bi,1)[0];out.push(cur)}
@@ -374,7 +375,7 @@ function render(){
     <button class="tick" data-tick="${h.id}" aria-label="${dn?"Undo drop":"Mark dropped"}">${I.check}</button></div>`};
   let html="";
   if(!homes.length)html=`<div class="empty"><b>Loading sales…</b></div>`;
-  else if(!all.length)html=`<div class="empty"><b>No sales in range</b>Try Month, a bigger distance, or a different suburb.</div>`;
+  else if(!all.length)html=`<div class="empty"><b>No sales in range</b>Try another week range, a bigger distance, or a different suburb.</div>`;
   else{if(route.length)html+=`<div class="list">${route.map(row).join("")}</div>`;
     if(route.length>10)html+=`<div class="cap" style="text-transform:none;letter-spacing:0;font-weight:500">Google Maps takes 10 stops at a time. Tick them off and the next 10 load.</div>`;
     if(later.length)html+=`<div class="cap">Further out · ${later.length}</div><div class="list">${later.map((h,i)=>row(h,route.length+i)).join("")}</div>`;
