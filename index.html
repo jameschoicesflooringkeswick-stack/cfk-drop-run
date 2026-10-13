@@ -452,7 +452,7 @@ function fit(){if(!map)return;const o=here(),d=S.rad/111.32,dl=S.rad/(111.32*Mat
 function panTo(h){if(!map)return;const p=sheetPad();map.easeTo({center:[h.lng,h.lat],zoom:Math.max(map.getZoom(),15.5),padding:p,duration:500})}
 
 /* ---------- Sheet ---------- */
-let snapI=1;const snaps=()=>{const h=$("app").clientHeight,sh=$("sheet"),seg=sh.querySelector("#vList .seg");let lo=snaps.lo||160;if(seg&&!$("vList").hidden){lo=snaps.lo=Math.round(seg.getBoundingClientRect().bottom-sh.getBoundingClientRect().top+12+(parseFloat(getComputedStyle(sh).paddingBottom)||0))}return[Math.min(lo,Math.round(h*.4)),Math.round(h*.5),Math.round(h*.9)]};
+let snapI=1;const snaps=()=>{const h=$("app").clientHeight,sh=$("sheet"),seg=sh.querySelector("#vList .where");let lo=snaps.lo||160;if(seg&&!$("vList").hidden){lo=snaps.lo=Math.round(seg.getBoundingClientRect().bottom-sh.getBoundingClientRect().top+10+(parseFloat(getComputedStyle(sh).paddingBottom)||0))}return[Math.min(lo,Math.round(h*.4)),Math.round(h*.5),Math.round(h*.9)]};
 function setSnap(i,anim=true){snapI=i;$("sheet").classList.toggle("drag",!anim);$("sheet").style.setProperty("--sh",snaps()[i]+"px");setTimeout(draw,anim?400:0)}
 /* Drag the sheet from the handle or header; drag down on the list when it's scrolled to the top to shrink it (like Apple Maps) */
 let dg=null;
