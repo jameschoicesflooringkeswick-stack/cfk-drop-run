@@ -42,6 +42,28 @@ button{border:0;background:none;padding:0;cursor:pointer;-webkit-user-select:non
 .glass{background:var(--glass);-webkit-backdrop-filter:saturate(180%) blur(24px);backdrop-filter:saturate(180%) blur(24px);box-shadow:var(--shadow)}
 .brand{position:absolute;left:12px;top:10px;z-index:5;height:36px;padding:0 12px;border-radius:18px;display:flex;align-items:center;gap:7px;font:700 14px var(--rounded)}
 .brand i{width:8px;height:8px;border-radius:50%;background:var(--blue)}
+.brand button{margin-left:4px;padding:5px 10px;border-radius:12px;background:var(--blue);color:#fff;font:600 13px var(--font)}
+.overlay{position:absolute;inset:0;z-index:30;background:rgba(0,0,0,.35);display:flex;align-items:flex-end;justify-content:center}
+.overlay[hidden]{display:none}
+.panel{width:100%;max-width:520px;max-height:88%;overflow-y:auto;background:var(--sheet);-webkit-backdrop-filter:saturate(180%) blur(30px);backdrop-filter:saturate(180%) blur(30px);border-radius:16px 16px 0 0;padding:16px 16px calc(24px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:14px}
+@media (min-width:860px){.overlay{align-items:center}.panel{border-radius:16px}}
+.ptop{display:flex;align-items:center;justify-content:space-between}
+.ptop h2{margin:0;font-size:24px;font-weight:700;letter-spacing:-.025em}
+.big{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.big div{background:var(--card);border-radius:12px;padding:12px 14px}
+.big b{display:block;font:700 30px var(--rounded);letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.big span{font-size:13px;color:var(--fg2)}
+.bars{background:var(--card);border-radius:12px;padding:6px 14px}
+.bar{display:grid;grid-template-columns:96px 1fr 34px;align-items:center;gap:10px;padding:8px 0;font-size:15px}
+.bar+.bar{border-top:.5px solid var(--sep)}
+.bar em{font-style:normal;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bar i{display:block;height:8px;border-radius:4px;background:var(--blue);min-width:4px}
+.bar b{text-align:right;font-variant-numeric:tabular-nums}
+.days{background:var(--card);border-radius:12px;padding:14px;display:flex;align-items:flex-end;gap:4px;height:120px}
+.days div{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:4px;height:100%;font-size:10px;color:var(--fg2)}
+.days i{display:block;width:100%;border-radius:3px 3px 0 0;background:var(--blue);min-height:2px}
+.days b{font-size:10px;color:var(--fg);font-weight:600;font-variant-numeric:tabular-nums}
+.nameIn{height:48px;border-radius:12px;border:0;background:var(--fill);padding:0 14px;font-size:17px;color:var(--fg);outline:none}
 .mbtns{position:absolute;right:12px;top:10px;z-index:5;display:flex;flex-direction:column;border-radius:12px;overflow:hidden}
 .mbtns button{width:44px;height:44px;display:grid;place-items:center;color:var(--blue)}
 .mbtns button+button{border-top:.5px solid var(--sep)}
@@ -136,7 +158,7 @@ button{border:0;background:none;padding:0;cursor:pointer;-webkit-user-select:non
 
 <div class="app" id="app">
   <canvas id="map" aria-label="Map of recent sales"></canvas>
-  <div class="brand glass"><i></i>CFK Drop Run</div>
+  <div class="brand glass"><i></i>CFK Drop Run<button id="statsBtn" hidden>Stats</button></div>
   <div class="mbtns glass"><button id="fitBtn" aria-label="Show all nearby"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
     <button id="zIn" aria-label="Zoom in"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
     <button id="zOut" aria-label="Zoom out"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M5 12h14"/></svg></button></div>
@@ -161,6 +183,15 @@ button{border:0;background:none;padding:0;cursor:pointer;-webkit-user-select:non
     </div>
     <div class="view" id="vDetail" hidden></div>
   </section>
+  <div class="overlay" id="stats" hidden><div class="panel" role="dialog" aria-label="Team stats">
+    <div class="ptop"><h2>Team stats</h2><button class="close" id="statsClose" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" width="12" height="12"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+    <div class="seg" id="statsSeg"><button data-p="7">Week</button><button data-p="31">Month</button><button data-p="150">All</button></div>
+    <div id="statsBody"></div></div></div>
+  <div class="overlay" id="nameSheet" hidden><div class="panel" role="dialog" aria-label="Your name">
+    <div class="ptop"><h2>Who's dropping?</h2></div>
+    <p style="margin:0;color:var(--fg2);font-size:15px">Your name goes on the drops you tick, so the team stats add up. You only do this once on this phone.</p>
+    <input class="nameIn" id="nameIn" placeholder="First name" autocomplete="given-name" maxlength="30">
+    <button class="go" id="nameSave" style="border:0">Save</button></div></div>
   <div class="toast glass" id="toast"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--green)"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span id="toastMsg">Dropped</span></div>
 </div>
 
@@ -182,6 +213,7 @@ const esc=s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"
 const money=n=>!n?"Undisclosed":n>=1e6?"$"+(n/1e6).toFixed(2).replace(/0$/,"")+"M":"$"+Math.round(n/1000)+"k";
 const daysAgo=d=>{const t=new Date();t.setDate(t.getDate()-d);return t.toISOString().slice(0,10)};
 const ago=d=>{const n=Math.round((Date.now()-new Date(d+"T12:00:00"))/864e5);return n<=0?"Today":n===1?"Yesterday":n<7?n+" days ago":n<14?"Last week":Math.round(n/7)+" weeks ago"};
+const agoT=t=>{if(!t)return"";const m=Math.round((Date.now()-t)/6e4);return m<1?"just now":m<60?m+" min ago":m<1440?Math.round(m/60)+" hr ago":Math.round(m/1440)+"d ago"};
 const km=(a,b)=>{const r=Math.PI/180,dLa=(b.lat-a.lat)*r,dLn=(b.lng-a.lng)*r,x=Math.sin(dLa/2)**2+Math.cos(a.lat*r)*Math.cos(b.lat*r)*Math.sin(dLn/2)**2;return 12742*Math.asin(Math.sqrt(x))};
 const dist=k=>k<1?Math.max(50,Math.round(k*20)*50)+" m":k.toFixed(1)+" km";
 const jit=s=>{let x=Math.sin(s*9301.7)*43758.5;return x-Math.floor(x)-.5};
@@ -209,18 +241,42 @@ async function loadSales(){
   try{const r=await fetch("sales.json",{cache:"no-store"});if(r.ok){const j=await r.json();const h=toHomes(j.sales||[]);if(h.length){homes=h;S.updated=j.updated;render();fit()}}}catch(e){}
 }
 /* Shared drop ticks so the team doesn't double up (falls back to this phone only) */
-let dropApi=false;
+let dropApi=false,dropInfo=new Map(),myName=store.get("dr4-name","");
 async function connectDrops(){
   try{const db=await window.claude?.use?.("db");if(db){dbRef=db.collection("drops");dbRef.onSnapshot(snap=>{drops=new Set(snap.docs.map(d=>d.id));render()},()=>{dbRef=null});return}}catch(e){}
   if(/^https?:$/.test(location.protocol)){ // Cloudflare version: shared ticks via /api/drops
-    const pull=async()=>{try{const r=await fetch("/api/drops",{cache:"no-store"});if(!r.ok)return;const j=await r.json();if(Array.isArray(j)){dropApi=true;drops=new Set(j);store.set("dr4-drops",j);render()}}catch(e){}};
+    const pull=async()=>{try{const r=await fetch("/api/drops",{cache:"no-store"});if(!r.ok)return;const j=await r.json();if(Array.isArray(j)){dropApi=true;const list=j.map(x=>typeof x==="string"?{id:x}:x);drops=new Set(list.map(x=>x.id));dropInfo=new Map(list.map(x=>[x.id,x]));store.set("dr4-drops",[...drops]);$("statsBtn").hidden=false;render();if(!$("stats").hidden)renderStats()}}catch(e){}};
     pull();setInterval(()=>{if(!document.hidden)pull()},30000);document.addEventListener("visibilitychange",()=>{if(!document.hidden)pull()})}
 }
+function askName(){return new Promise(res=>{const el=$("nameSheet");el.hidden=false;const inp=$("nameIn");inp.value=myName;setTimeout(()=>inp.focus(),50);
+  const done=()=>{const v=inp.value.trim().slice(0,30);if(!v){inp.focus();return}myName=v;store.set("dr4-name",v);el.hidden=true;$("nameSave").onclick=null;res(v)};
+  $("nameSave").onclick=done;inp.onkeydown=e=>{if(e.key==="Enter")done()}})}
 async function toggleDrop(id){
+  if(dropApi&&!drops.has(id)&&!myName)await askName();
   const was=drops.has(id);was?drops.delete(id):drops.add(id);store.set("dr4-drops",[...drops]);
-  if(!was){toast("Dropped");navigator.vibrate&&navigator.vibrate(12)}render();
+  if(!was){dropInfo.set(id,{id,n:myName,t:Date.now()});toast("Dropped");navigator.vibrate&&navigator.vibrate(12)}else dropInfo.delete(id);render();
   if(dbRef){try{was?await dbRef.doc(id).delete():await dbRef.doc(id).set({at:new Date().toISOString()})}catch(e){}}
-  else if(dropApi){try{await fetch("/api/drops",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id,done:!was})})}catch(e){}}
+  else if(dropApi){try{await fetch("/api/drops",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id,done:!was,name:myName,suburb:(homes.find(h=>h.id===id)||{}).suburb||""})})}catch(e){}}
+}
+
+
+/* ---------- Team stats (Cloudflare version) ---------- */
+let statsP=7;
+function renderStats(){
+  document.querySelectorAll("#statsSeg button").forEach(b=>b.setAttribute("aria-pressed",+b.dataset.p===statsP));
+  const cut=Date.now()-statsP*864e5,rows=[...dropInfo.values()].filter(x=>x.t&&x.t>=cut);
+  const by=(k)=>{const m=new Map();rows.forEach(r=>{const v=r[k]||"Unknown";m.set(v,(m.get(v)||0)+1)});return[...m.entries()].sort((a,b)=>b[1]-a[1])};
+  const people=by("n"),subs=by("s").slice(0,8);
+  const today=new Date();today.setHours(0,0,0,0);const nd=statsP===7?7:14,days=[];
+  for(let i=nd-1;i>=0;i--){const d0=today.getTime()-i*864e5,d1=d0+864e5;days.push([new Date(d0),[...dropInfo.values()].filter(x=>x.t>=d0&&x.t<d1).length])}
+  const mx=Math.max(1,...days.map(d=>d[1])),pm=Math.max(1,...people.map(p=>p[1])),sm=Math.max(1,...subs.map(p=>p[1]));
+  const bars=(list,max)=>list.length?`<div class="bars">${list.map(([k,v])=>`<div class="bar"><em>${esc(k)}</em><i style="width:${Math.max(3,v/max*100)}%"></i><b>${v}</b></div>`).join("")}</div>`:`<div class="empty" style="padding:14px">No drops yet</div>`;
+  $("statsBody").innerHTML=`<div class="big"><div><b>${rows.length}</b><span>flyers dropped</span></div><div><b>${people.length}</b><span>people dropping</span></div></div>
+    <div class="cap" style="margin:4px 4px -6px">Last ${nd} days</div>
+    <div class="days">${days.map(([d,v])=>`<div>${v?`<b>${v}</b>`:""}<i style="height:${v/mx*78}%"></i>${d.toLocaleDateString("en-AU",{weekday:"narrow"})}</div>`).join("")}</div>
+    <div class="cap" style="margin:4px 4px -6px">By person</div>${bars(people,pm)}
+    <div class="cap" style="margin:4px 4px -6px">Top suburbs</div>${bars(subs,sm)}
+    ${myName?`<button class="more" id="renameBtn">You're dropping as ${esc(myName)} · change</button>`:""}`;
 }
 
 /* ---------- Where ---------- */
@@ -269,7 +325,7 @@ function render(){
   else{go.setAttribute("aria-disabled","true");go.removeAttribute("href");go.innerHTML=`${I.check}<span>${all.length?"All dropped here":"No stops"}</span>`}
   const row=(h,i)=>{const dn=drops.has(h.id);return`<div class="row ${dn?"done":""}" data-id="${h.id}" role="button" tabindex="0">
     <span class="num">${dn?I.check.replace("<svg",'<svg width="15" height="15"'):i+1}</span>
-    <span class="rt"><b>${esc(h.addr)}</b><span>${dist(km(o,h))} · ${esc(h.suburb)} · ${ago(h.date)}</span></span>
+    <span class="rt"><b>${esc(h.addr)}</b><span>${dn&&dropInfo.get(h.id)?.n?`Dropped by ${esc(dropInfo.get(h.id).n)} · ${agoT(dropInfo.get(h.id).t)}`:`${dist(km(o,h))} · ${esc(h.suburb)} · ${ago(h.date)}`}</span></span>
     <button class="tick" data-tick="${h.id}" aria-label="${dn?"Undo drop":"Mark dropped"}">${I.check}</button></div>`};
   let html="";
   if(!homes.length)html=`<div class="empty"><b>Loading sales…</b></div>`;
@@ -436,6 +492,9 @@ $("sugg").addEventListener("pointerdown",e=>e.preventDefault());
 $("sugg").addEventListener("click",e=>{const b=e.target.closest("[data-sub]");if(b){setLoc(b.dataset.sub);setSnap(1)}});
 document.addEventListener("click",e=>{if(!e.target.closest(".where,#sugg"))$("sugg").hidden=true});
 $("fitBtn").onclick=fit;
+$("statsBtn").onclick=()=>{$("stats").hidden=false;renderStats()};
+$("statsClose").onclick=()=>{$("stats").hidden=true};
+$("stats").addEventListener("click",e=>{if(e.target.id==="stats")$("stats").hidden=true;const b=e.target.closest("[data-p]");if(b){statsP=+b.dataset.p;renderStats()}if(e.target.closest("#renameBtn"))askName().then(renderStats)});
 const smoothZoom=f=>{let n=0;const s=()=>{zoomAt(Math.pow(f,1/8));if(++n<8)requestAnimationFrame(s)};s()};
 $("zIn").onclick=()=>smoothZoom(1.8);$("zOut").onclick=()=>smoothZoom(1/1.8);
 $("scroll").addEventListener("click",e=>{const t=e.target.closest("[data-tick]");if(t){e.stopPropagation();toggleDrop(t.dataset.tick);return}const r=e.target.closest(".row");if(r)openDetail(r.dataset.id)});
