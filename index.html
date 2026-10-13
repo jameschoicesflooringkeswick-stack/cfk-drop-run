@@ -40,9 +40,8 @@ html,body{background:#f8f4f0}@media (prefers-color-scheme:dark){html,body{backgr
 body{color:var(--fg);font-family:var(--font);font-size:17px;letter-spacing:-.01em;-webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent}
 button,a,input{font:inherit;color:inherit;touch-action:manipulation}
 button{border:0;background:none;padding:0;cursor:pointer;-webkit-user-select:none;user-select:none}
-.app{position:fixed;top:0;left:0;right:0;height:var(--apph,100%);overflow:visible}
-#map{position:absolute;top:0;left:0;right:0;bottom:-140px;width:100%}
-@media (min-width:860px){#map{bottom:0}}
+.app{position:fixed;top:0;left:0;right:0;height:var(--apph,100%);overflow:hidden}
+#map{position:absolute;inset:0;width:100%;height:100%}
 .legal{position:absolute;left:14px;bottom:calc(100% + 8px);font-size:11px;font-weight:500;color:var(--fg2);text-decoration:underline;text-underline-offset:2px;text-shadow:0 0 3px var(--land),0 0 3px var(--land)}
 
 .stop-pin{width:26px;height:26px;border-radius:50%;background:var(--blue);color:#fff;border:2.5px solid #fff;box-shadow:0 1px 5px rgba(0,0,0,.4);display:grid;place-items:center;font:800 13px/1 var(--rounded);cursor:pointer}
@@ -433,10 +432,6 @@ function initMap(){
   map=new maplibregl.Map({container:"map",style:darkQ.matches?STYLE_DARK:STYLE_LIGHT,center:[o.lng,o.lat],zoom:13,attributionControl:false,pitchWithRotate:false,dragRotate:false});
   map.touchZoomRotate.disableRotation();
   map.on("style.load",addLayers);
-  // Backup for iPhone's bottom strip: paint a snapshot of the map behind the page so the strip shows map too
-  map.on("idle",()=>{if(innerWidth>=860)return;clearTimeout(initMap.snapT);initMap.snapT=setTimeout(()=>{map.once("render",()=>{try{
-    const c=map.getCanvas(),url=c.toDataURL("image/jpeg",.6),w=$("map").offsetWidth,h=$("map").offsetHeight;
-    document.documentElement.style.background=`url(${url}) 0 0/${w}px ${h}px no-repeat,#f8f4f0`}catch(e){}});map.triggerRepaint()},150)});
   const hq=document.createElement("div");hq.className="hq-pin";hq.textContent="CFK";
   hqMarker=new maplibregl.Marker({element:hq}).setLngLat([HQ.lng,HQ.lat]).addTo(map);
   const me=document.createElement("div");me.className="me-dot";me.innerHTML="<i></i>";
@@ -462,7 +457,7 @@ function draw(){
     draw.pins=[...all.entries()].reverse().map(([i,h])=>{const el=document.createElement("div");el.className="stop-pin"+(i>=route.length?" next":"")+(h.id===selected?" sel":"");el.textContent=i+1;
       el.addEventListener("click",ev=>{ev.stopPropagation();openDetail(h.id)});return new maplibregl.Marker({element:el}).setLngLat([h.lng,h.lat]).addTo(map)})}
 }
-function sheetPad(){const wide=innerWidth>=860,t=$("app").querySelector(".mbtns").getBoundingClientRect().top;return{top:t+12,left:wide?410:30,right:30,bottom:(wide?30:Math.min($("sheet").offsetHeight+20,innerHeight*.6))+Math.max(0,$("map").offsetHeight-$("app").clientHeight)}}
+function sheetPad(){const wide=innerWidth>=860,t=$("app").querySelector(".mbtns").getBoundingClientRect().top;return{top:t+12,left:wide?410:30,right:30,bottom:wide?30:Math.min($("sheet").offsetHeight+20,innerHeight*.6)}}
 function fit(){if(!map)return;const o=here(),d=S.rad/111.32,dl=S.rad/(111.32*Math.cos(o.lat*Math.PI/180));
   const pts=[[o.lng-dl,o.lat-d],[o.lng+dl,o.lat+d],...nearby().map(h=>[h.lng,h.lat])];
   let w=180,s=90,e=-180,n=-90;pts.forEach(([x,y])=>{if(x<w)w=x;if(x>e)e=x;if(y<s)s=y;if(y>n)n=y});
