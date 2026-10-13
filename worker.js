@@ -93,8 +93,33 @@ async function geocode(r) {
   const j = res.ok ? await res.json().catch(() => []) : [];
   return j[0] ? { lat: +j[0].lat, lng: +j[0].lon } : null;
 }
+// Respect each site's robots.txt automatically (re-checked daily) — if a site starts disallowing us, we stop.
+function robotsAllows(txt, path) {
+  let applies = false, rules = [];
+  for (const raw of String(txt || "").split(/\r?\n/)) {
+    const line = raw.replace(/#.*/, "").trim(); if (!line) continue;
+    const [k, ...rest] = line.split(":"); const v = rest.join(":").trim(), key = k.trim().toLowerCase();
+    if (key === "user-agent") applies = v === "*" || /cfkdroprun/i.test(v);
+    else if (applies && (key === "disallow" || key === "allow") && v) rules.push([key, v]);
+  }
+  let best = null; // longest matching rule wins
+  for (const [k, v] of rules) { const re = new RegExp("^" + v.replace(/[.+?^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*").replace(/\\\$$/, "$")); if (re.test(path) && (!best || v.length > best[1].length)) best = [k, v]; }
+  return !best || best[0] === "allow";
+}
+async function siteOk(st, src, u) {
+  const host = new URL(u).origin, site = (st.sites[src.id] ||= {});
+  if (site.blockedUntil && Date.now() < site.blockedUntil) return "paused (site blocked us)";
+  if (!site.robotsAt || Date.now() - site.robotsAt > 864e5) {
+    try { const r = await fetch(host + "/robots.txt", { headers: UA }); site.robots = r.ok ? (await r.text()).slice(0, 20000) : ""; } catch { site.robots = site.robots || ""; }
+    site.robotsAt = Date.now();
+  }
+  const url = new URL(u);
+  return robotsAllows(site.robots, url.pathname + url.search) ? null : "robots.txt disallows";
+}
+
 async function crawlAgencies(env, force) {
   const st = (await env.DROPS.get("agency:v1", "json")) || { rows: {}, a: 0, p: 1, passes: {}, log: [] };
+  st.sites ||= {};
   if (!st.fix1) { st.fix1 = 1; delete st.passes.klemich; } // first klemich pass hit a wrong page URL
   // first pass of each site runs one page a minute so the app fills quickly; after that one page per 30 min
   const firstPassLeft = AGENCIES.some((x) => !st.passes[x.id]);
@@ -102,8 +127,11 @@ async function crawlAgencies(env, force) {
   const src = AGENCIES[st.a % AGENCIES.length], first = !st.passes[src.id];
   const today = day(new Date()), u = src.page(st.p);
   let status = 0, found = 0, added = 0, known = null;
-  try {
+  const skip = await siteOk(st, src, u);
+  if (skip) { status = skip; found = 0; }
+  else try {
     const res = await fetch(u, { headers: UA }); status = res.status;
+    if ([401, 403, 429, 503].includes(res.status)) st.sites[src.id].blockedUntil = Date.now() + 7 * 864e5; // never push past a block
     if (res.ok) {
       const rows = parseAgency(await res.text(), u); found = rows.length;
       for (const r of rows) {
