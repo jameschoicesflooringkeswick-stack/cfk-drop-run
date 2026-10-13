@@ -266,10 +266,15 @@ const I={
 function toHomes(rows){return rows.map((s,i)=>{if(!s.addr||!s.suburb||!s.date||/land|vacant/i.test(s.type||""))return null;
   const sub=s.suburb.replace(/\b\w/g,c=>c.toUpperCase()),c=SUB[sub.toUpperCase()];if(!c)return null;const id=keyOf(s.addr,sub);
   return{id,addr:s.addr,suburb:sub,type:/apartment|unit|flat/i.test(s.type||"")?"Unit":(s.type||"House"),price:+s.price||0,date:s.date,bed:+s.bed||0,bath:+s.bath||0,car:+s.car||0,url:s.url,
-    lat:c[0]+jit(id.length*7+i)*.0085,lng:c[1]+jit(id.length*3+i+7)*.0095}}).filter(Boolean)}
+    lat:+s.lat||c[0]+jit(id.length*7+i)*.0085,lng:+s.lng||c[1]+jit(id.length*3+i+7)*.0095}}).filter(Boolean)}
 async function loadSales(){
   homes=toHomes(SOLD_FALLBACK);render();fit();
-  try{const r=await fetch("sales.json",{cache:"no-store"});if(r.ok){const j=await r.json();const h=toHomes(j.sales||[]);if(h.length){homes=h;S.updated=j.updated;render();fit()}}}catch(e){}
+  // sales.json (bundled) + /api/sales (kept fresh automatically by the server every 2 minutes), merged by listing
+  const get=u=>fetch(u,{cache:"no-store"}).then(r=>r.ok?r.json():null).catch(()=>null);
+  const[a,b]=await Promise.all([get("sales.json"),/^https?:$/.test(location.protocol)?get("/api/sales"):null]);
+  const by=new Map();for(const j of[a,b])for(const x of(j&&j.sales)||[])if(x&&x.url){const o=by.get(x.url);by.set(x.url,o?{...o,...x}:x)}
+  const h=toHomes([...by.values()]);
+  if(h.length){const seen=new Set();homes=h.filter(x=>!seen.has(x.id)&&seen.add(x.id));S.updated=[a&&a.updated,b&&b.updated&&b.updated.slice(0,10)].filter(Boolean).sort().pop();render();fit()}
 }
 /* Shared drop ticks so the team doesn't double up (falls back to this phone only) */
 let dropApi=false,dropInfo=new Map(),myName=store.get("dr4-name","");
