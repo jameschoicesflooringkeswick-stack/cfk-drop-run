@@ -478,14 +478,14 @@ function panTo(h){if(!map)return;const p=sheetPad();map.easeTo({center:[h.lng,h.
 let snapI=1;const snaps=()=>{const h=$("app").clientHeight,sh=$("sheet"),seg=sh.querySelector("#vList .where");if(!seg||!seg.offsetHeight)seg=null;let lo=snaps.lo||160;if(seg&&!$("vList").hidden){lo=snaps.lo=Math.round(seg.getBoundingClientRect().bottom-sh.getBoundingClientRect().top+(window.__appH?6:14))}return[Math.min(lo,Math.round(h*.4)),Math.round(h*.5),Math.round(h*.88)]};
 function setSnap(i,anim=true){snapI=i;$("sheet").classList.toggle("mini",i===0&&innerWidth<860);$("sheet").classList.toggle("drag",!anim);$("sheet").style.setProperty("--sh",snaps()[i]+"px");setTimeout(draw,anim?400:0)}
 /* Drag the sheet from the handle or header; drag down on the list when it's scrolled to the top to shrink it (like Apple Maps) */
-let dg=null;
+let dg=null,dragged=0;
 function dStart(e,fromList){if(innerWidth>=860||e.pointerType==="mouse"&&e.button!==0)return;
-  if(!fromList&&e.target.closest("input,button,a,#sugg"))return;
+  if(!fromList&&e.target.closest("input:not(#whereIn),button,a,#sugg"))return;
   dg={y:e.clientY,h:$("sheet").offsetHeight,m:false,list:fromList,id:e.pointerId}}
 function dMove(e){if(!dg||e.pointerId!==dg.id)return;const dy=dg.y-e.clientY;
   if(!dg.m){if(Math.abs(dy)<8)return;
     if(dg.list){const sc=$("scroll");if(!(dy<0&&sc.scrollTop<=0)){dg=null;return}} // only pull-down at top of list
-    dg.m=true;$("sheet").classList.remove("mini");try{e.target.setPointerCapture(e.pointerId)}catch(_){}}
+    dg.m=true;dragged=Date.now();$("sheet").classList.remove("mini");try{e.target.setPointerCapture(e.pointerId)}catch(_){}}
   e.preventDefault();const s=snaps();$("sheet").classList.add("drag");$("sheet").style.setProperty("--sh",Math.max(s[0],Math.min(s[2]+20,dg.h+dy))+"px")}
 function dEnd(e){if(!dg||e.pointerId!==dg.id)return;const d=dg;dg=null;$("sheet").classList.remove("drag");
   if(!d.m){if(!d.list&&e.target.closest("#grab"))setSnap(snapI===0?1:0);return}
@@ -503,7 +503,7 @@ $("scroll").addEventListener("touchmove",e=>{if($("scroll").scrollTop<=0&&e.touc
 /* ---------- Controls ---------- */
 document.querySelectorAll(".seg button").forEach(b=>b.onclick=()=>{S.days=+b.dataset.days;store.set("dr4-days",S.days);render();fit()});
 $("radBtn").onclick=()=>{S.rad=RADII[(RADII.indexOf(S.rad)+1)%RADII.length];store.set("dr4-rad",S.rad);render();fit()};
-$("gpsBtn").onclick=e=>{e.preventDefault();if(gps){fit();return}startGPS()};
+$("gpsBtn").onclick=e=>{e.preventDefault();if(innerWidth<860&&snapI===0)setSnap(1);if(gps){fit();return}startGPS()};
 function sovList(){const q=$("sovIn").value.trim().toLowerCase();
   const m=q?SUBNAMES.filter(n=>n.toLowerCase().startsWith(q)).concat(SUBNAMES.filter(n=>!n.toLowerCase().startsWith(q)&&n.toLowerCase().includes(q))).slice(0,30):[];
   let h=`<button class="me" data-me="1">Use my location</button>`;
@@ -512,11 +512,11 @@ function sovList(){const q=$("sovIn").value.trim().toLowerCase();
   if(q&&!m.length)h+=`<button disabled>No suburb matches “${esc(q)}”</button>`;$("sovList").innerHTML=h}
 function openSearch(){$("sov").hidden=false;$("sovIn").value="";sovList();$("sovIn").focus();scrollTo(0,0)}
 function closeSearch(){$("sovIn").blur();$("sov").hidden=true;scrollTo(0,0)}
-$("whereIn").addEventListener("click",e=>{e.preventDefault();openSearch()});
+$("whereIn").addEventListener("click",e=>{e.preventDefault();if(Date.now()-dragged<400)return;openSearch()});
 $("sovIn").addEventListener("input",sovList);
 $("sovIn").addEventListener("keydown",e=>{if(e.key==="Enter"){const b=$("sovList").querySelector("[data-sub]");if(b){setLoc(b.dataset.sub);closeSearch()}}});
 $("sovX").onclick=closeSearch;
-$("sovList").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;if(b.dataset.me){closeSearch();if(!gps)startGPS();else fit();return}if(b.dataset.sub){setLoc(b.dataset.sub);closeSearch();if(innerWidth<860)setSnap(1)}});
+$("sovList").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;if(b.dataset.me){closeSearch();if(!gps)startGPS();else fit();if(innerWidth<860)setSnap(1);return}if(b.dataset.sub){setLoc(b.dataset.sub);closeSearch();if(innerWidth<860)setSnap(1)}});
 $("sugg").addEventListener("pointerdown",e=>e.preventDefault());
 $("sugg").addEventListener("click",e=>{const b=e.target.closest("[data-sub]");if(b){setLoc(b.dataset.sub);setSnap(1)}});
 document.addEventListener("click",e=>{if(!e.target.closest(".where,#sugg"))$("sugg").hidden=true});
