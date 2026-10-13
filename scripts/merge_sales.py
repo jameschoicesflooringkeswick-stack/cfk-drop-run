@@ -14,6 +14,8 @@ for ln in open(sys.argv[1], encoding="utf-8"):
     p = [x.strip() for x in ln.strip().split("|")]
     if len(p) < 9 or "domain.com.au" not in p[8]: continue
     addr, sub, typ, price, date, bed, bath, car, url = p[:9]
+    addr = re.sub(r",?\s*" + re.escape(sub) + r"\s*$", "", addr, flags=re.I).strip(" ,")  # "3 Royal Close, Findon" -> "3 Royal Close"
+    if not re.search(r"\d", addr) or addr.lower() == sub.lower(): continue  # no street address to drop a flyer at
     if re.search(r"land|vacant|acreage", typ, re.I): continue
     try: d = dt.date.fromisoformat(date)
     except ValueError: continue
