@@ -412,7 +412,7 @@ function render(){
   else{go.setAttribute("aria-disabled","true");go.removeAttribute("href");go.innerHTML=`${I.check}<span>${all.length?"All dropped here":"No stops"}</span>`}
   const row=(h,i)=>{const dn=drops.has(h.id);return`<div class="row ${dn?"done":""}" data-id="${h.id}" role="button" tabindex="0">
     <span class="num">${dn?I.check.replace("<svg",'<svg width="15" height="15"'):i+1}</span>
-    <span class="rt"><b>${esc(h.addr)}</b><span>${dn&&dropInfo.get(h.id)?.n?`Dropped by ${esc(dropInfo.get(h.id).n)} · ${agoT(dropInfo.get(h.id).t)}`:`${dist(km(o,h))} · ${esc(h.suburb)} · ${ago(h.date)}`}</span></span>
+    <span class="rt"><b>${esc(h.addr)}</b><span>${dn&&dropInfo.get(h.id)?.n?`Dropped by ${esc(dropInfo.get(h.id).n)} · ${agoT(dropInfo.get(h.id).t)}`:`${dist(km(o,h))} · ${esc(h.suburb)} · ${h.approx?"~":""}${ago(h.date)}`}</span></span>
     <button class="tick" data-tick="${h.id}" aria-label="${dn?"Undo drop":"Mark dropped"}">${I.check}</button></div>`};
   renderPulse();
   let html="";
@@ -431,7 +431,7 @@ function render(){
 function renderDetail(){
   const h=homes.find(x=>x.id===selected);if(!h)return closeDetail();const dn=drops.has(h.id);
   $("vDetail").innerHTML=`<div class="head">
-    <div class="dtop"><div style="flex:1;min-width:0"><h2>${esc(h.addr)}</h2><p>${esc(h.suburb)} · ${h.type} · ${dist(km(here(),h))} away</p><p>Sold ${ago(h.date).toLowerCase()}</p></div>
+    <div class="dtop"><div style="flex:1;min-width:0"><h2>${esc(h.addr)}</h2><p>${esc(h.suburb)} · ${h.type} · ${dist(km(here(),h))} away</p><p>Sold ${h.approx?"about ":""}${ago(h.date).toLowerCase()}${h.approx?` <span style="opacity:.6">(estimated — ${esc((AGENCY[h.src]||{}).n||"agency")} doesn't show sold dates)</span>`:""}</p></div>
     <button class="close" id="dClose" aria-label="Close">${I.x}</button></div>
     <div class="acts"><button class="act ${dn?"ok":"prim"}" id="dDrop">${I.check}${dn?"Dropped":"Mark dropped"}</button>
     <a class="act" href="https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=${addrQ(h)}" target="_blank" rel="noopener">${I.car}Directions</a></div></div>
