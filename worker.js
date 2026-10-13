@@ -40,6 +40,7 @@ const UA = { "User-Agent": "CFKDropRun/1.0 (internal tool; contact via choicesfl
 const AGENCIES = [ // pages = how deep to read each cycle (~6 weeks of sales); checked: terms + robots.txt allow it
   { id: "klemich", pages: 10, page: (p) => `https://www.klemich.com.au/recently-sold${p > 1 ? "?page=" + p : "/"}` },
   { id: "magain", pages: 16, page: (p) => `https://www.magain.com.au/recently-sold/${p > 1 ? "page/" + p + "/" : ""}` },
+  { id: "acre", pages: 1, parse: parseAC, page: () => "https://www.acrealestate.com.au/search?property_search%5Brent_or_sale%5D=PropertyForSale&property_search%5Bsold%5D=true" },
   // Not used: OCRE (Vercel bot check), Ray White (CloudFront block) — we never get around blocks.
   // Fox, Eclipse: listings load by script, nothing in the page. LJ Hooker, Harcourts: terms forbid it.
 ];
@@ -54,6 +55,20 @@ function splitAddress(t) {
   else { const m = t.match(new RegExp("^(.*?" + STREET.source + ")\\s+(.+)$", "i")); if (m) { addr = m[1]; suburb = m[m.length - 1]; } }
   if (!addr || !suburb || !/\d/.test(addr) || /\d/.test(suburb) || suburb.length > 30) return null;
   return { addr: addr.replace(/^lot\s+\d+\s*,?\s*/i, "").trim(), suburb: title(suburb) };
+}
+function parseAC(html, base) {
+  const out = [], seen = new Set();
+  for (const m of html.matchAll(/<a[^>]+href="([^"]*\/properties\/\d+)"[^>]*>([\s\S]*?)<\/a>/gi)) {
+    const t = strip(m[2]);
+    const r = t.match(/SOLD\s+(.*?\d.*?)\s+((?:[A-Z][A-Z'\-]+\s?)+?)\s+Sold on\s+(\d{1,2})\s+([A-Za-z]{3})[a-z]*\s+(\d{4})/);
+    if (!r) continue;
+    const mm = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 }[r[4].toLowerCase()]; if (!mm) continue;
+    const addr = r[1].replace(/\s*\/\s*/g, "/").trim(), suburb = title(r[2].trim()), k = addr + "|" + suburb;
+    if (seen.has(k)) continue; seen.add(k);
+    const n = (re) => num((t.match(re) || [])[1]);
+    out.push({ addr, suburb, date: `${r[5]}-${String(mm).padStart(2, "0")}-${r[3].padStart(2, "0")}`, bed: n(/(\d+)\s*Beds?/i), bath: n(/(\d+)\s*Baths?/i), car: n(/(\d+)\s*Cars?/i), price: 0, url: new URL(m[1], base).href });
+  }
+  return out;
 }
 // Generic sold-page parser: JSON-LD first (schema.org), then common listing-card markup.
 function parseAgency(html, base) {
@@ -140,12 +155,13 @@ async function crawlAgencies(env, force) {
     const res = await fetch(u, { headers: UA }); status = res.status;
     if ([401, 403, 429, 503].includes(res.status)) st.sites[src.id].blockedUntil = Date.now() + 7 * 864e5; // never push past a block
     if (res.ok) {
-      const rows = parseAgency(await res.text(), u); found = rows.length;
+      const rows = (src.parse || parseAgency)(await res.text(), u); found = rows.length;
       for (const r of rows) {
         const k = geoKey(r.addr, r.suburb);
         if (st.rows[k]) { st.rows[k].seen = today; continue; }
         const est = day(new Date(Date.now() - Math.round(((st.p - 1) / src.pages) * 42) * 864e5));
-        st.rows[k] = { ...r, type: "House", date: first ? (known && known.get(k)) || est : today, src: src.id, seen: today, ...(first && !(known && known.get(k)) ? { approx: 1 } : {}) };
+        st.rows[k] = r.date ? { ...r, type: "House", src: src.id, seen: today } // site shows the real sale date
+          : { ...r, type: "House", date: first ? est : today, src: src.id, seen: today, ...(first ? { approx: 1 } : {}) };
         added++;
       }
     }
@@ -272,7 +288,7 @@ async function refresh(env, force) {
 // Plain-English problems for the app to show, so nobody has to dig to find out what's wrong.
 function health(ag) {
   const out = [], now = Date.now(), d = (t) => t ? new Date(t).toLocaleDateString("en-AU", { day: "numeric", month: "short", timeZone: "Australia/Adelaide" }) : "never";
-  const NAME = { klemich: "Klemich", magain: "Magain" };
+  const NAME = { klemich: "Klemich", magain: "Magain", acre: "AC Real Estate" };
   if (!ag.updated || now - Date.parse(ag.updated) > 3 * 3600e3) out.push({ level: "error", msg: `Background updater hasn't run since ${d(ag.updated && Date.parse(ag.updated))}. Check the Cloudflare worker's cron trigger.` });
   for (const a of AGENCIES) {
     const s = (ag.sites || {})[a.id] || {}, n = NAME[a.id] || a.id;

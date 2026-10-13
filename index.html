@@ -261,7 +261,7 @@ const pcOf=h=>POSTCODES[h.suburb]||"";
 const addrQ=h=>encodeURIComponent(`${h.addr}, ${h.suburb} SA ${pcOf(h)}`);
 const ABBR={street:"st",road:"rd",avenue:"ave",terrace:"tce",highway:"hwy",parade:"pde",drive:"dr",court:"ct",close:"cl",place:"pl",crescent:"cres"};
 // Where each sale came from, so the link and its label always match
-const AGENCY={klemich:{n:"Klemich",c:"#1d1d1f",sold:"https://www.klemich.com.au/recently-sold/"},magain:{n:"Magain",c:"#c8102e",sold:"https://www.magain.com.au/recently-sold/"},proptrack:{n:"realestate.com.au",c:"#e4002b"}};
+const AGENCY={klemich:{n:"Klemich",c:"#1d1d1f",sold:"https://www.klemich.com.au/recently-sold/"},magain:{n:"Magain",c:"#c8102e",sold:"https://www.magain.com.au/recently-sold/"},acre:{n:"AC Real Estate",c:"#a6192e",sold:"https://www.acrealestate.com.au/search?property_search%5Brent_or_sale%5D=PropertyForSale&property_search%5Bsold%5D=true"},proptrack:{n:"realestate.com.au",c:"#e4002b"}};
 function agencyLink(h){const a=AGENCY[h.src];if(!a)return"";const u=h.url||a.sold;if(!u)return"";
   return`<a class="link" href="${esc(u)}" target="_blank" rel="noopener"><i style="background:${a.c}">${esc(a.n[0])}</i><span class="t">${esc(a.n)} ${h.url?"listing":"sold properties"}</span>${I.out}</a>`}
 // Domain property profiles spell street types in full: 16-tudor-street-dulwich-sa-5065, units as 3-59-king-william-road-…
