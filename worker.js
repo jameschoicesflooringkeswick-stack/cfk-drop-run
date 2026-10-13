@@ -30,13 +30,11 @@ async function setDrop(request, env) {
 
 /* ---------- Agency "recently sold" pages (sites whose terms and robots.txt allow it) ---------- */
 const UA = { "User-Agent": "CFKDropRun/1.0 (internal tool; contact via choicesflooring.com.au)", "Accept": "text/html" };
-const AGENCIES = [
-  { id: "klemich", page: (p) => `https://www.klemich.com.au/recently-sold/${p > 1 ? "page/" + p + "/" : ""}` },
-  { id: "magain", page: (p) => `https://www.magain.com.au/recently-sold/${p > 1 ? "page/" + p + "/" : ""}` },
-  { id: "ocre", page: (p) => `https://ocre.com.au/sold${p > 1 ? "?page=" + p : ""}` },
-  { id: "fox", page: (p) => `https://www.foxrealestate.com.au/sell/sold-properties/${p > 1 ? "page/" + p + "/" : ""}` },
-  { id: "eclipse", page: (p) => `https://www.eclipserealestate.com.au/sold/${p > 1 ? "page/" + p + "/" : ""}` },
-  { id: "raywhite", page: (p) => `https://www.raywhite.com/sold?state=SA${p > 1 ? "&page=" + p : ""}` },
+const AGENCIES = [ // pages = how deep to read each cycle (~6 weeks of sales); checked: terms + robots.txt allow it
+  { id: "klemich", pages: 10, page: (p) => `https://www.klemich.com.au/recently-sold/${p > 1 ? "page/" + p + "/" : ""}` },
+  { id: "magain", pages: 16, page: (p) => `https://www.magain.com.au/recently-sold/${p > 1 ? "page/" + p + "/" : ""}` },
+  // Not used: OCRE (Vercel bot check), Ray White (CloudFront block) — we never get around blocks.
+  // Fox, Eclipse: listings load by script, nothing in the page. LJ Hooker, Harcourts: terms forbid it.
 ];
 
 const strip = (h) => String(h || "").replace(/<[^>]+>/g, " ").replace(/&amp;/g, "&").replace(/&#0?39;|&rsquo;/g, "'").replace(/&nbsp;/g, " ").replace(/\s+/g, " ").trim();
@@ -83,6 +81,57 @@ function parseAgency(html, base) {
     }
   }
   return out;
+}
+
+/* One page per cron run, so each site sees at most ~2 requests an hour. A full pass takes ~13 hours.
+   Sale date = the day a house first appears on an agency's sold page. On the very first pass the date
+   is borrowed from sales.json when the address matches, otherwise estimated from how deep the page is. */
+const geoKey = (a, s) => (a + "|" + s).toLowerCase().replace(/[^a-z0-9|/]/g, "");
+async function geocode(r) {
+  const q = new URLSearchParams({ format: "json", countrycodes: "au", limit: "1", q: `${r.addr}, ${r.suburb}, South Australia` });
+  const res = await fetch("https://nominatim.openstreetmap.org/search?" + q, { headers: { "User-Agent": UA["User-Agent"] } });
+  const j = res.ok ? await res.json().catch(() => []) : [];
+  return j[0] ? { lat: +j[0].lat, lng: +j[0].lon } : null;
+}
+async function crawlAgencies(env) {
+  const st = (await env.DROPS.get("agency:v1", "json")) || { rows: {}, a: 0, p: 1, passes: {}, log: [] };
+  const src = AGENCIES[st.a % AGENCIES.length], first = !st.passes[src.id];
+  const today = day(new Date()), u = src.page(st.p);
+  let status = 0, found = 0, added = 0, known = null;
+  try {
+    const res = await fetch(u, { headers: UA }); status = res.status;
+    if (res.ok) {
+      const rows = parseAgency(await res.text(), u); found = rows.length;
+      if (first) { // dates from the hand-collected list where we can
+        known = new Map();
+        try { const j = await (await env.ASSETS.fetch(new Request("https://x/sales.json"))).json(); for (const x of j.sales || []) known.set(geoKey(x.addr, x.suburb), x.date); } catch {}
+      }
+      for (const r of rows) {
+        const k = geoKey(r.addr, r.suburb);
+        if (st.rows[k]) { st.rows[k].seen = today; continue; }
+        const est = day(new Date(Date.now() - Math.round(((st.p - 1) / src.pages) * 42) * 864e5));
+        st.rows[k] = { ...r, type: "House", date: first ? (known && known.get(k)) || est : today, src: src.id, seen: today, ...(first && !(known && known.get(k)) ? { approx: 1 } : {}) };
+        added++;
+      }
+    }
+  } catch (e) { status = 0; }
+  // geocode a few new houses per run (OpenStreetMap asks for no more than 1 request a second)
+  let geo = 0;
+  for (const r of Object.values(st.rows)) {
+    if (geo >= 6) break;
+    if (r.lat || r.geoTried) continue;
+    r.geoTried = 1; geo++;
+    try { const g = await geocode(r); if (g) Object.assign(r, g); } catch {}
+    await new Promise((ok) => setTimeout(ok, 1200));
+  }
+  // next page; wrap to next agency after its last page (or when a page comes back empty)
+  if (st.p >= src.pages || !found) { st.passes[src.id] = (st.passes[src.id] || 0) + 1; st.a = (st.a + 1) % AGENCIES.length; st.p = 1; } else st.p++;
+  const cut = day(new Date(Date.now() - KEEP_DAYS * 864e5));
+  for (const [k, v] of Object.entries(st.rows)) if (v.date < cut) delete st.rows[k];
+  st.updated = new Date().toISOString();
+  st.log = [{ t: st.updated, s: src.id, p: u, h: status, n: found, a: added, g: geo }, ...(st.log || [])].slice(0, 30);
+  await env.DROPS.put("agency:v1", JSON.stringify(st));
+  return st.log[0];
 }
 
 /* ---------- Automatic sales refresh: PropTrack Listings API ----------
@@ -190,15 +239,20 @@ export default {
     }
     if (url.pathname === "/api/sales") {
       const st = env.DROPS ? await loadState(env) : { sales: {} };
-      return Response.json({ updated: st.updated || null, sales: Object.values(st.sales) }, { headers: { "Cache-Control": "no-store" } });
+      const ag = env.DROPS ? (await env.DROPS.get("agency:v1", "json")) || { rows: {} } : { rows: {} };
+      const agRows = Object.values(ag.rows).map(({ seen, geoTried, ...r }) => ({ ...r, url: r.url || "" }));
+      return Response.json({ updated: [st.updated, ag.updated].filter(Boolean).sort().pop() || null, sales: [...Object.values(st.sales), ...agRows] }, { headers: { "Cache-Control": "no-store" } });
     }
     if (url.pathname === "/api/status") {
       const st = env.DROPS ? await loadState(env) : {};
       const wk = day(new Date(Date.now() - 7 * 864e5));
       return Response.json({ connected: !!(env.PROPTRACK_KEY && env.PROPTRACK_SECRET), updated: st.updated || null, lastRun: st.lastRun || null,
         sales: Object.keys(st.sales || {}).length, soldLast7Days: Object.values(st.sales || {}).filter((s) => s.date >= wk).length,
-        sample: url.searchParams.has("sample") ? st.sample : undefined, log: (st.log || []).slice(0, 10) }, { headers: { "Cache-Control": "no-store" } });
+        sample: url.searchParams.has("sample") ? st.sample : undefined, log: (st.log || []).slice(0, 10),
+        agencies: await (async () => { const ag = (await env.DROPS.get("agency:v1", "json")) || { rows: {} }; const rows = Object.values(ag.rows);
+          return { houses: rows.length, geocoded: rows.filter((r) => r.lat).length, bySite: AGENCIES.map((a) => [a.id, rows.filter((r) => r.src === a.id).length]), next: ag.a !== undefined ? AGENCIES[ag.a % AGENCIES.length].id + " p" + ag.p : null, log: (ag.log || []).slice(0, 8) }; })() }, { headers: { "Cache-Control": "no-store" } });
     }
+    if (url.pathname === "/api/crawl-now") return Response.json(await crawlAgencies(env), { headers: { "Cache-Control": "no-store" } });
     if (url.pathname === "/api/agency-test") { // dev helper: parsed rows from one page
       const src = AGENCIES.find((x) => x.id === url.searchParams.get("a"));
       if (!src) return new Response("unknown agency", { status: 400 });
@@ -239,6 +293,8 @@ export default {
     return res;
   },
   async scheduled(event, env, ctx) {
-    if (env.DROPS && env.PROPTRACK_KEY && env.PROPTRACK_SECRET) ctx.waitUntil(refresh(env, false));
+    if (!env.DROPS) return;
+    ctx.waitUntil(crawlAgencies(env));
+    if (env.PROPTRACK_KEY && env.PROPTRACK_SECRET) ctx.waitUntil(refresh(env, false));
   },
 };

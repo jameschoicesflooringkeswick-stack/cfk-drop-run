@@ -272,7 +272,7 @@ async function loadSales(){
   // sales.json (bundled) + /api/sales (kept fresh automatically by the server every 2 minutes), merged by listing
   const get=u=>fetch(u,{cache:"no-store"}).then(r=>r.ok?r.json():null).catch(()=>null);
   const[a,b]=await Promise.all([get("sales.json"),/^https?:$/.test(location.protocol)?get("/api/sales"):null]);
-  const by=new Map();for(const j of[a,b])for(const x of(j&&j.sales)||[])if(x&&x.url){const o=by.get(x.url);by.set(x.url,o?{...o,...x}:x)}
+  const by=new Map();for(const j of[a,b])for(const x of(j&&j.sales)||[])if(x&&x.addr){const k=(x.addr+"|"+x.suburb).toLowerCase();const o=by.get(k);by.set(k,o?{...o,...x,date:o.approx&&!x.approx?x.date:(x.approx?o.date:x.date)}:x)}
   const h=toHomes([...by.values()]);
   if(h.length){const seen=new Set();homes=h.filter(x=>!seen.has(x.id)&&seen.add(x.id));S.updated=[a&&a.updated,b&&b.updated&&b.updated.slice(0,10)].filter(Boolean).sort().pop();render();fit()}
 }
