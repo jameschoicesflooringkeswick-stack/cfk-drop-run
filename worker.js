@@ -110,7 +110,8 @@ function parseAgency(html, base) {
    is estimated from how deep the page is (page 1 = newest). */
 const geoKey = (a, s) => (a + "|" + s).toLowerCase().replace(/[^a-z0-9|/]/g, "");
 async function geocode(r) {
-  const q = new URLSearchParams({ format: "json", countrycodes: "au", limit: "1", q: `${r.addr}, ${r.suburb}, South Australia` });
+  const street = String(r.addr).replace(/^.*\//, "").replace(/^(unit|lot|apt)\s+\S+\s*/i, "").trim();
+  const q = new URLSearchParams({ format: "json", countrycodes: "au", limit: "1", q: `${street}, ${r.suburb}, South Australia` });
   const res = await fetch("https://nominatim.openstreetmap.org/search?" + q, { headers: { "User-Agent": UA["User-Agent"] } });
   const j = res.ok ? await res.json().catch(() => []) : [];
   return j[0] ? { lat: +j[0].lat, lng: +j[0].lon } : null;
@@ -143,6 +144,7 @@ async function crawlAgencies(env, force) {
   const st = (await env.DROPS.get("agency:v1", "json")) || { rows: {}, a: 0, p: 1, passes: {}, log: [] };
   st.sites ||= {};
   st.deep ||= {};
+  if (!st.fix4) { st.fix4 = 1; for (const r of Object.values(st.rows)) if (!r.lat && /\//.test(r.addr)) delete r.geoTried; } // retry units with the street-only lookup
   if (!st.fix1) { st.fix1 = 1; delete st.passes.klemich; } // first klemich pass hit a wrong page URL
   if (!st.fix2) { // position-based dates were wrong (Klemich mixes in year-old sales): reset the guessed rows
     st.fix2 = 1;
