@@ -100,6 +100,68 @@ async function refresh(env, slugs) {
   await env.DROPS.put("sales:v1", JSON.stringify(st));
   return { added, results: results.map((r) => ({ slug: r.slug, status: r.status, found: r.rows.length, bytes: r.bytes, error: r.error })), total: Object.keys(st.sales).length };
 }
+
+/* ---------- Domain official API (needs secret DOMAIN_API_KEY) ----------
+   Domain blocks its website from Cloudflare servers (403), but its developer API works.
+   Strategy: state-wide "Sold" search sorted newest first, 100 per page. Backfill walks back
+   120 days once; after that each run only reads pages until it reaches sales it already has. */
+const API = "https://api.domain.com.au/v1/listings/residential/_search";
+const pick = (...v) => v.find((x) => x !== undefined && x !== null && x !== "");
+function fromApi(item) {
+  const l = item.listing || item; const p = l.propertyDetails || {};
+  const sd = (l.saleDetails && (l.saleDetails.soldDetails || l.saleDetails)) || l.soldData || {};
+  const date = String(pick(sd.soldDate, sd.date, l.dateSold, l.soldDate, l.dateUpdated, "") || "").slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !p.suburb) return null;
+  const type = String(pick(p.propertyType, (p.allPropertyTypes || [])[0], "House"));
+  if (/land|vacant/i.test(type)) return null;
+  const street = [p.streetNumber, p.street].filter(Boolean).join(" ");
+  const addr = (p.unitNumber ? p.unitNumber + "/" : "") + (street || String(p.displayableAddress || "").split(",")[0]);
+  if (!/\d/.test(addr)) return null;
+  const priceTxt = String(pick(sd.soldPrice, sd.price, l.priceDetails && l.priceDetails.price, l.priceDetails && l.priceDetails.displayPrice, "") || "");
+  return {
+    addr, suburb: String(p.suburb).toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase()),
+    type: /apartment|unit|flat/i.test(type) ? "Unit" : type.replace(/([a-z])([A-Z])/g, "$1 $2"),
+    price: /[0-9]/.test(priceTxt) && !/withheld|contact/i.test(priceTxt) ? num(priceTxt.split("-")[0]) : 0,
+    date, bed: num(p.bedrooms), bath: num(p.bathrooms), car: num(p.carspaces),
+    url: "https://www.domain.com.au/" + String(pick(l.listingSlug, l.id, "")).replace(/^\//, ""),
+    ...(p.latitude && p.longitude ? { lat: +p.latitude, lng: +p.longitude } : {}),
+  };
+}
+async function apiPage(env, page) {
+  const res = await fetch(API, {
+    method: "POST",
+    headers: { "X-Api-Key": env.DOMAIN_API_KEY, "Content-Type": "application/json", "Accept": "application/json" },
+    body: JSON.stringify({ listingType: "Sold", locations: [{ state: "SA" }], pageSize: 100, pageNumber: page, sort: { sortKey: "SoldDate", direction: "Descending" } }),
+  });
+  const text = await res.text();
+  let data = null; try { data = JSON.parse(text); } catch {}
+  return { status: res.status, items: Array.isArray(data) ? data : [], sample: Array.isArray(data) && data[0] ? JSON.stringify(data[0]).slice(0, 1500) : text.slice(0, 300) };
+}
+async function refreshApi(env, force) {
+  const st = await loadState(env);
+  const api = st.api || (st.api = { page: 1, backfill: true, last: 0 });
+  if (!force && !api.backfill && Date.now() - api.last < 30 * 60e3) return null; // every 30 min once caught up
+  const cut = new Date(Date.now() - KEEP_DAYS * 864e5).toISOString().slice(0, 10);
+  const pages = api.backfill ? 8 : 4, log = [];
+  for (let i = 0; i < pages; i++) {
+    const r = await apiPage(env, api.page);
+    let added = 0, oldest = "9999";
+    for (const it of r.items) { const row = fromApi(it); if (!row) continue; if (row.date < oldest) oldest = row.date; if (!st.sales[row.url]) added++; st.sales[row.url] = row; }
+    log.push({ s: "api p" + api.page, h: r.status, n: r.items.length, a: added });
+    if (r.status !== 200) { api.sample = r.sample; break; }
+    if (api.page === 1) api.sample = r.sample;
+    const done = !r.items.length || oldest < cut || (!api.backfill && added === 0);
+    if (done) { api.page = 1; api.backfill = false; break; }
+    api.page++;
+  }
+  api.last = Date.now();
+  for (const [k, v] of Object.entries(st.sales)) if (v.date < cut) delete st.sales[k];
+  st.updated = new Date().toISOString();
+  st.log = [{ t: st.updated, r: log }, ...(st.log || [])].slice(0, 40);
+  await env.DROPS.put("sales:v1", JSON.stringify(st));
+  return { log, total: Object.keys(st.sales).length };
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -116,7 +178,7 @@ export default {
     if (url.pathname === "/api/status") {
       const st = env.DROPS ? await loadState(env) : {};
       const recent = Object.values(st.sales || {}).filter((s) => s.date >= new Date(Date.now() - 7 * 864e5).toISOString().slice(0, 10)).length;
-      return Response.json({ updated: st.updated || null, cursor: st.cursor, suburbs: SLUGS.length, sales: Object.keys(st.sales || {}).length, soldLast7Days: recent, log: (st.log || []).slice(0, 15) }, { headers: { "Cache-Control": "no-store" } });
+      return Response.json({ apiKey: !!env.DOMAIN_API_KEY, api: st.api ? { page: st.api.page, backfill: st.api.backfill, last: st.api.last } : null, sample: url.searchParams.has("sample") && st.api ? st.api.sample : undefined, updated: st.updated || null, cursor: st.cursor, suburbs: SLUGS.length, sales: Object.keys(st.sales || {}).length, soldLast7Days: recent, log: (st.log || []).slice(0, 15) }, { headers: { "Cache-Control": "no-store" } });
     }
     if (url.pathname === "/api/probe") { // diagnostics: can this server reach a listings site?
       const u = url.searchParams.get("u") || "";
@@ -126,6 +188,10 @@ export default {
       const body = await r.text();
       const i = Math.max(0, body.search(/[Ss]old/));
       return Response.json({ status: r.status, bytes: body.length, head: body.slice(0, 300), nearSold: body.slice(i, i + 800) }, { headers: { "Cache-Control": "no-store" } });
+    }
+    if (url.pathname === "/api/refresh-api") {
+      if (!env.DOMAIN_API_KEY) return new Response("DOMAIN_API_KEY not set", { status: 503 });
+      return Response.json(await refreshApi(env, true), { headers: { "Cache-Control": "no-store" } });
     }
     if (url.pathname === "/api/refresh") { // manual check of one suburb, e.g. /api/refresh?slug=unley-sa-5061
       const slug = (url.searchParams.get("slug") || "").toLowerCase();
@@ -142,6 +208,6 @@ export default {
     return res;
   },
   async scheduled(event, env, ctx) {
-    if (env.DROPS) ctx.waitUntil(refresh(env));
+    if (env.DROPS && env.DOMAIN_API_KEY) ctx.waitUntil(refreshApi(env, false));
   },
 };
