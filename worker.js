@@ -153,6 +153,7 @@ async function crawlAgencies(env, force) {
     }
     delete st.passes.magain; delete st.deep.magain;
   }
+  if (!st.fix3) { st.fix3 = 1; st.a = AGENCIES.findIndex((x) => x.id === "magain"); st.p = 1; delete st.passes.magain; delete st.deep.magain; } // restart Magain from page 1
   // first pass of each site runs one page a minute so the app fills quickly; after that one page per 30 min
   // a one-off quick pass (1 page/min) after reading depth went from ~6 to ~10 weeks, so "Moving in" fills today
   st.deep ||= {};
@@ -172,10 +173,11 @@ async function crawlAgencies(env, force) {
         const k = geoKey(r.addr, r.suburb);
         if (st.rows[k]) { st.rows[k].seen = today; continue; }
         const est = src.daysPerPage ? day(new Date(Date.now() - Math.round((st.p - 0.5) * src.daysPerPage) * 864e5)) : null;
-        st.rows[k] = r.date ? { ...r, type: "House", src: src.id, seen: today } // site shows the real sale date
-          : (first || st.p > 2) ? (est ? { ...r, type: "House", date: est, src: src.id, seen: today, approx: 1, pg: st.p } // newest-first list: estimate from position
-              : { ...r, type: "House", date: today, src: src.id, seen: today, hidden: 1 }) // list order unreliable: keep as known, don't show
-          : { ...r, type: "House", date: today, src: src.id, seen: today }; // new on the first pages = sold just now
+        const type = /\//.test(r.addr) ? "Unit" : "House";
+        st.rows[k] = r.date ? { ...r, type, src: src.id, seen: today } // site shows the real sale date
+          : (first || st.p > 2) ? (est ? { ...r, type, date: est, src: src.id, seen: today, approx: 1, pg: st.p } // newest-first list: estimate from position
+              : { ...r, type, date: today, src: src.id, seen: today, hidden: 1 }) // list order unreliable: keep as known, don't show
+          : { ...r, type, date: today, src: src.id, seen: today }; // new on the first pages = sold just now
         added++;
       }
     }
@@ -328,7 +330,7 @@ export default {
     if (url.pathname === "/api/sales") {
       const st = env.DROPS ? await loadState(env) : { sales: {} };
       const ag = env.DROPS ? (await env.DROPS.get("agency:v1", "json")) || { rows: {} } : { rows: {} };
-      const agRows = Object.values(ag.rows).filter((r) => !r.hidden).map(({ seen, geoTried, hidden, pg, ...r }) => ({ ...r, url: r.url || "" }));
+      const agRows = Object.values(ag.rows).filter((r) => !r.hidden).map(({ seen, geoTried, hidden, pg, ...r }) => ({ ...r, url: r.url || "", ...(r.lat ? {} : { locApprox: 1 }) }));
       return Response.json({ updated: [st.updated, ag.updated].filter(Boolean).sort().pop() || null, problems: health(ag), sales: [...Object.values(st.sales), ...agRows] }, { headers: { "Cache-Control": "no-store" } });
     }
     if (url.pathname === "/api/status") {

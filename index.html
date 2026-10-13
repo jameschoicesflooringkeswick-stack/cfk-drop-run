@@ -53,6 +53,7 @@ button{border:0;background:none;padding:0;cursor:pointer;-webkit-user-select:non
 .stop-pin{width:26px;height:26px;border-radius:50%;background:var(--blue);color:#fff;border:2.5px solid #fff;box-shadow:0 1px 5px rgba(0,0,0,.4);display:grid;place-items:center;font:800 13px/1 var(--rounded);cursor:pointer}
 .stop-pin.sel{width:34px;height:34px;font-size:15px}
 .seg button small{display:block;font-size:11px;font-weight:500;opacity:.6;margin-top:1px;line-height:1.1}
+.stop-pin.approx{border-style:dashed}
 .stop-pin.done{background:var(--green);font-size:13px}
 .stop-pin.next{width:22px;height:22px;background:#fff;color:var(--blue);border:2px solid var(--blue);font-size:10px}
 .stop-pin.next.sel{width:32px;height:32px;font-size:13px}
@@ -287,7 +288,7 @@ const I={
 /* ---------- Data ---------- */
 function toHomes(rows){return rows.map((s,i)=>{if(!s.addr||!s.suburb||!s.date||/land|vacant/i.test(s.type||""))return null;
   const sub=s.suburb.replace(/\b\w/g,c=>c.toUpperCase()),c=SUB[sub.toUpperCase()];if(!c)return null;const id=keyOf(s.addr,sub);
-  return{id,addr:s.addr,suburb:sub,type:/apartment|unit|flat/i.test(s.type||"")?"Unit":(s.type||"House"),price:+s.price||0,date:s.date,bed:+s.bed||0,bath:+s.bath||0,car:+s.car||0,url:s.url,approx:!!s.approx,src:s.src||"",
+  return{id,addr:s.addr,suburb:sub,type:/apartment|unit|flat/i.test(s.type||"")?"Unit":(s.type||"House"),price:+s.price||0,date:s.date,bed:+s.bed||0,bath:+s.bath||0,car:+s.car||0,url:s.url,approx:!!s.approx,src:s.src||"",locApprox:!s.lat,
     lat:+s.lat||c[0]+jit(id.length*7+i)*.0085,lng:+s.lng||c[1]+jit(id.length*3+i+7)*.0095}}).filter(Boolean)}
 const h0=b=>(b.sales||[]).length;
 async function loadSales(){
@@ -439,7 +440,7 @@ function render(){
 function renderDetail(){
   const h=homes.find(x=>x.id===selected);if(!h)return closeDetail();const dn=drops.has(h.id);
   $("vDetail").innerHTML=`<div class="head">
-    <div class="dtop"><div style="flex:1;min-width:0"><h2>${esc(h.addr)}</h2><p>${esc(h.suburb)} · ${h.type} · ${dist(km(here(),h))} away</p><p>Sold ${h.approx?"about ":""}${ago(h.date).toLowerCase()}${h.approx?` <span style="opacity:.6">(estimated — ${esc((AGENCY[h.src]||{}).n||"agency")} doesn't show sold dates)</span>`:""}</p></div>
+    <div class="dtop"><div style="flex:1;min-width:0"><h2>${esc(h.addr)}</h2><p>${esc(h.suburb)} · ${h.type} · ${dist(km(here(),h))} away${h.locApprox?' <span style="opacity:.6">(pin approximate — exact address not on the map yet)</span>':""}</p><p>Sold ${h.approx?"about ":""}${ago(h.date).toLowerCase()}${h.approx?` <span style="opacity:.6">(estimated — ${esc((AGENCY[h.src]||{}).n||"agency")} doesn't show sold dates)</span>`:""}</p></div>
     <button class="close" id="dClose" aria-label="Close">${I.x}</button></div>
     <div class="acts"><button class="act ${dn?"ok":"prim"}" id="dDrop">${I.check}${dn?"Dropped":"Mark dropped"}</button>
     <a class="act" href="https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=${addrQ(h)}" target="_blank" rel="noopener">${I.car}Directions</a></div></div>
@@ -530,7 +531,7 @@ function draw(){
     // dropped houses stay on the map as green ticks
     const donePins=done.map(h=>{const el=document.createElement("div");el.className="stop-pin done"+(h.id===selected?" sel":"");el.innerHTML="✓";
       el.addEventListener("click",ev=>{ev.stopPropagation();openDetail(h.id)});return new maplibregl.Marker({element:el}).setLngLat([h.lng,h.lat]).addTo(map)});
-    draw.pins=[...donePins,...[...all.entries()].reverse().map(([i,h])=>{const el=document.createElement("div");el.className="stop-pin"+(i>=route.length?" next":"")+(h.id===selected?" sel":"");el.textContent=i+1;
+    draw.pins=[...donePins,...[...all.entries()].reverse().map(([i,h])=>{const el=document.createElement("div");el.className="stop-pin"+(i>=route.length?" next":"")+(h.locApprox?" approx":"")+(h.id===selected?" sel":"");el.textContent=i+1;
       el.addEventListener("click",ev=>{ev.stopPropagation();openDetail(h.id)});return new maplibregl.Marker({element:el}).setLngLat([h.lng,h.lat]).addTo(map)})]}
   if(!mapReady&&!(map.isStyleLoaded&&map.isStyleLoaded()))return;
   if(!map.getSource("range")||!map.getLayer("range-line")){if(!draw.fix){draw.fix=setTimeout(()=>{draw.fix=0;if(map.isStyleLoaded())addLayers()},400)}return}
