@@ -412,18 +412,19 @@ const pt=(h,props)=>({type:"Feature",geometry:{type:"Point",coordinates:[h.lng,h
 function css(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim()}
 function addLayers(){
   const blue=css("--blue")||"#0066e6",green=css("--green")||"#28b04c";
-  const src=id=>{if(!map.getSource(id))map.addSource(id,{type:"geojson",data:EMPTY})};
+  const L=sp=>{try{if(!map.getLayer(sp.id))map.addLayer(sp)}catch(e){}};
+  const src=id=>{try{if(!map.getSource(id))map.addSource(id,{type:"geojson",data:EMPTY})}catch(e){}};
   ["range","route","others","drops","stops"].forEach(src);
-  map.addLayer({id:"range-fill",type:"fill",source:"range",paint:{"fill-color":blue,"fill-opacity":.05}});
-  map.addLayer({id:"range-line",type:"line",source:"range",paint:{"line-color":blue,"line-width":1.5,"line-opacity":.6,"line-dasharray":[3,3]}});
-  map.addLayer({id:"route-casing",type:"line",source:"route",layout:{"line-cap":"round","line-join":"round"},paint:{"line-color":"#ffffff","line-width":6,"line-opacity":.9}});
-  map.addLayer({id:"route-line",type:"line",source:"route",layout:{"line-cap":"round","line-join":"round"},paint:{"line-color":blue,"line-width":3.2}});
-  map.addLayer({id:"others",type:"circle",source:"others",paint:{"circle-radius":["interpolate",["linear"],["zoom"],10,2.5,15,5],"circle-color":blue,"circle-opacity":.55,"circle-stroke-color":"#fff","circle-stroke-width":1.2}});
-  map.addLayer({id:"drops",type:"circle",source:"drops",paint:{"circle-radius":["interpolate",["linear"],["zoom"],10,4,15,8],"circle-color":green,"circle-stroke-color":"#fff","circle-stroke-width":2}});
-  map.addLayer({id:"stops",type:"circle",source:"stops",paint:{
+  L({id:"range-fill",type:"fill",source:"range",paint:{"fill-color":blue,"fill-opacity":.05}});
+  L({id:"range-line",type:"line",source:"range",paint:{"line-color":blue,"line-width":1.5,"line-opacity":.6,"line-dasharray":[3,3]}});
+  L({id:"route-casing",type:"line",source:"route",layout:{"line-cap":"round","line-join":"round"},paint:{"line-color":"#ffffff","line-width":6,"line-opacity":.9}});
+  L({id:"route-line",type:"line",source:"route",layout:{"line-cap":"round","line-join":"round"},paint:{"line-color":blue,"line-width":3.2}});
+  L({id:"others",type:"circle",source:"others",paint:{"circle-radius":["interpolate",["linear"],["zoom"],10,2.5,15,5],"circle-color":blue,"circle-opacity":.55,"circle-stroke-color":"#fff","circle-stroke-width":1.2}});
+  L({id:"drops",type:"circle",source:"drops",paint:{"circle-radius":["interpolate",["linear"],["zoom"],10,4,15,8],"circle-color":green,"circle-stroke-color":"#fff","circle-stroke-width":2}});
+  L({id:"stops",type:"circle",source:"stops",paint:{
     "circle-radius":["case",["boolean",["get","sel"],false],13,["interpolate",["linear"],["zoom"],10,5,13,8,16,11]],
     "circle-color":blue,"circle-stroke-color":"#fff","circle-stroke-width":2.2}});
-  map.addLayer({id:"stops-num",type:"symbol",source:"stops",minzoom:12.5,layout:{"text-field":["get","n"],"text-font":["Noto Sans Bold"],"text-size":11,"text-allow-overlap":true,"text-ignore-placement":true},paint:{"text-color":"#fff"}});
+  L({id:"stops-num",type:"symbol",source:"stops",minzoom:12.5,layout:{"text-field":["get","n"],"text-font":["Noto Sans Bold"],"text-size":11,"text-allow-overlap":true,"text-ignore-placement":true},paint:{"text-color":"#fff"}});
   mapReady=true;draw();
 }
 function initMap(){
@@ -432,6 +433,7 @@ function initMap(){
   map=new maplibregl.Map({container:"map",style:darkQ.matches?STYLE_DARK:STYLE_LIGHT,center:[o.lng,o.lat],zoom:13,attributionControl:false,pitchWithRotate:false,dragRotate:false});
   map.touchZoomRotate.disableRotation();
   map.on("style.load",addLayers);
+  map.on("idle",()=>{if(mapReady&&!map.getLayer("range-line"))addLayers()});
   const hq=document.createElement("div");hq.className="hq-pin";hq.textContent="CFK";
   hqMarker=new maplibregl.Marker({element:hq}).setLngLat([HQ.lng,HQ.lat]).addTo(map);
   const me=document.createElement("div");me.className="me-dot";me.innerHTML="<i></i>";
@@ -445,17 +447,19 @@ function initMap(){
 function draw(){
   if(!map)return;const o=here();
   if(o.hq)meMarker.remove();else{meMarker.setLngLat([o.lng,o.lat]);if(!meMarker._map)meMarker.addTo(map);meMarker.getElement().classList.toggle("live",!!gps)}
+  const all=[...route,...nextUp.slice(0,80)],sig=all.map(h=>h.id).join("|")+"#"+selected;
+  if(sig!==draw.sig){draw.sig=sig;(draw.pins||[]).forEach(m=>m.remove());
+    draw.pins=[...all.entries()].reverse().map(([i,h])=>{const el=document.createElement("div");el.className="stop-pin"+(i>=route.length?" next":"")+(h.id===selected?" sel":"");el.textContent=i+1;
+      el.addEventListener("click",ev=>{ev.stopPropagation();openDetail(h.id)});return new maplibregl.Marker({element:el}).setLngLat([h.lng,h.lat]).addTo(map)})}
   if(!mapReady)return;
+  if(!map.getSource("range")||!map.getLayer("range-line")){if(!draw.fix){draw.fix=setTimeout(()=>{draw.fix=0;if(map.isStyleLoaded())addLayers()},400)}return}
   const inR=nearby(),inSet=new Set(inR.map(h=>h.id)),order=new Map(route.map((h,i)=>[h.id,i]));
   map.getSource("range").setData(circleGeo(o,S.rad));
   map.getSource("route").setData(route.length?fc([{type:"Feature",geometry:{type:"LineString",coordinates:[[o.lng,o.lat],...route.map(h=>[h.lng,h.lat])]},properties:{}}]):EMPTY);
   map.getSource("others").setData(fc(pool().filter(h=>!inSet.has(h.id)).map(h=>pt(h,{id:h.id}))));
   map.getSource("drops").setData(fc(inR.filter(h=>drops.has(h.id)).map(h=>pt(h,{id:h.id}))));
   map.getSource("stops").setData(EMPTY);
-  const all=[...route,...nextUp.slice(0,80)],sig=all.map(h=>h.id).join("|")+"#"+selected;
-  if(sig!==draw.sig){draw.sig=sig;(draw.pins||[]).forEach(m=>m.remove());
-    draw.pins=[...all.entries()].reverse().map(([i,h])=>{const el=document.createElement("div");el.className="stop-pin"+(i>=route.length?" next":"")+(h.id===selected?" sel":"");el.textContent=i+1;
-      el.addEventListener("click",ev=>{ev.stopPropagation();openDetail(h.id)});return new maplibregl.Marker({element:el}).setLngLat([h.lng,h.lat]).addTo(map)})}
+
 }
 function sheetPad(){const wide=innerWidth>=860,t=$("app").querySelector(".mbtns").getBoundingClientRect().top;return{top:t+12,left:wide?410:30,right:30,bottom:wide?30:Math.min($("sheet").offsetHeight+20,innerHeight*.6)}}
 function fit(){if(!map)return;const o=here(),d=S.rad/111.32,dl=S.rad/(111.32*Math.cos(o.lat*Math.PI/180));
