@@ -260,6 +260,13 @@ const keyOf=(a,s)=>(a+"-"+s).toLowerCase().replace(/\b(street)\b/g,"st").replace
 const pcOf=h=>POSTCODES[h.suburb]||"";
 const addrQ=h=>encodeURIComponent(`${h.addr}, ${h.suburb} SA ${pcOf(h)}`);
 const ABBR={street:"st",road:"rd",avenue:"ave",terrace:"tce",highway:"hwy",parade:"pde",drive:"dr",court:"ct",close:"cl",place:"pl",crescent:"cres"};
+// Where each sale came from, so the link and its label always match
+const AGENCY={klemich:{n:"Klemich",c:"#1d1d1f",sold:"https://www.klemich.com.au/recently-sold/"},magain:{n:"Magain",c:"#c8102e",sold:"https://www.magain.com.au/recently-sold/"},proptrack:{n:"realestate.com.au",c:"#e4002b"}};
+function agencyLink(h){const a=AGENCY[h.src];if(!a)return"";const u=h.url||a.sold;if(!u)return"";
+  return`<a class="link" href="${esc(u)}" target="_blank" rel="noopener"><i style="background:${a.c}">${esc(a.n[0])}</i><span class="t">${esc(a.n)} ${h.url?"listing":"sold properties"}</span>${I.out}</a>`}
+// Domain property profiles spell street types in full: 16-tudor-street-dulwich-sa-5065, units as 3-59-king-william-road-…
+function domSlug(h){const a=h.addr.toLowerCase().replace(/\//g," ").replace(/[^a-z0-9\- ]/g,"").trim().split(/\s+/).join("-");
+  return(a+"-"+h.suburb.toLowerCase().replace(/[^a-z ]/g,"").replace(/ /g,"-")+"-sa-"+pcOf(h)).replace(/-+/g,"-")}
 function reaSlug(h){let a=h.addr.toLowerCase().trim(),unit="";if(a.includes("/")){const[u,r]=a.split("/");unit="unit-"+u.trim()+"-";a=r}
   const w=a.replace(/[^a-z0-9\- ]/g,"").trim().split(/\s+/);w[w.length-1]=ABBR[w[w.length-1]]||w[w.length-1];
   return(unit+w.join("-")+"-"+h.suburb.toLowerCase().replace(/[^a-z ]/g,"").replace(/ /g,"-")+"-sa-"+pcOf(h)).replace(/-+/g,"-")}
@@ -273,7 +280,7 @@ const I={
 /* ---------- Data ---------- */
 function toHomes(rows){return rows.map((s,i)=>{if(!s.addr||!s.suburb||!s.date||/land|vacant/i.test(s.type||""))return null;
   const sub=s.suburb.replace(/\b\w/g,c=>c.toUpperCase()),c=SUB[sub.toUpperCase()];if(!c)return null;const id=keyOf(s.addr,sub);
-  return{id,addr:s.addr,suburb:sub,type:/apartment|unit|flat/i.test(s.type||"")?"Unit":(s.type||"House"),price:+s.price||0,date:s.date,bed:+s.bed||0,bath:+s.bath||0,car:+s.car||0,url:s.url,approx:!!s.approx,
+  return{id,addr:s.addr,suburb:sub,type:/apartment|unit|flat/i.test(s.type||"")?"Unit":(s.type||"House"),price:+s.price||0,date:s.date,bed:+s.bed||0,bath:+s.bath||0,car:+s.car||0,url:s.url,approx:!!s.approx,src:s.src||"",
     lat:+s.lat||c[0]+jit(id.length*7+i)*.0085,lng:+s.lng||c[1]+jit(id.length*3+i+7)*.0095}}).filter(Boolean)}
 const h0=b=>(b.sales||[]).length;
 async function loadSales(){
@@ -426,8 +433,9 @@ function renderDetail(){
     <a class="act" href="https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=${addrQ(h)}" target="_blank" rel="noopener">${I.car}Directions</a></div></div>
     <div class="scroll"><div class="facts"><div class="fact"><span>Sold</span><b>${money(h.price)}</b></div><div class="fact"><span>Beds</span><b>${h.bed||"—"}</b></div><div class="fact"><span>Baths</span><b>${h.bath||"—"}</b></div></div>
     <div class="links">
-      ${h.url?`<a class="link" href="${esc(h.url)}" target="_blank" rel="noopener"><i style="background:#0ea800">D</i><span class="t">Domain listing</span>${I.out}</a>`:""}
-      <a class="link" href="https://www.realestate.com.au/property/${reaSlug(h)}" target="_blank" rel="noopener"><i style="background:#e4002b">rea</i><span class="t">realestate.com.au</span>${I.out}</a>
+      ${agencyLink(h)}
+      <a class="link" href="https://www.domain.com.au/property-profile/${domSlug(h)}" target="_blank" rel="noopener"><i style="background:#0ea800">D</i><span class="t">Domain property profile</span>${I.out}</a>
+      <a class="link" href="https://www.realestate.com.au/property/${reaSlug(h)}" target="_blank" rel="noopener"><i style="background:#e4002b">rea</i><span class="t">realestate.com.au property</span>${I.out}</a>
     </div></div>`;
   $("dClose").onclick=closeDetail;$("dDrop").onclick=()=>toggleDrop(h.id);
 }
