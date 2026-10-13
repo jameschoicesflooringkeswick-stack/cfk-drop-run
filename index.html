@@ -45,24 +45,28 @@ button{border:0;background:none;padding:0;cursor:pointer;-webkit-user-select:non
 .brand button{margin-left:4px;padding:5px 10px;border-radius:12px;background:var(--blue);color:#fff;font:600 13px var(--font)}
 .overlay{position:absolute;inset:0;z-index:30;background:rgba(0,0,0,.35);display:flex;align-items:flex-end;justify-content:center}
 .overlay[hidden]{display:none}
-.panel{width:100%;max-width:520px;max-height:88%;overflow-y:auto;background:var(--sheet);-webkit-backdrop-filter:saturate(180%) blur(30px);backdrop-filter:saturate(180%) blur(30px);border-radius:16px 16px 0 0;padding:16px 16px calc(24px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:14px}
+.panel{width:100%;max-width:520px;max-height:90%;overflow-y:auto;overscroll-behavior:contain;background:var(--sheet);-webkit-backdrop-filter:saturate(180%) blur(30px);backdrop-filter:saturate(180%) blur(30px);border-radius:16px 16px 0 0;padding:16px 16px calc(24px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:14px}
 @media (min-width:860px){.overlay{align-items:center}.panel{border-radius:16px}}
 .ptop{display:flex;align-items:center;justify-content:space-between}
 .ptop h2{margin:0;font-size:24px;font-weight:700;letter-spacing:-.025em}
-.big{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.big div{background:var(--card);border-radius:12px;padding:12px 14px}
-.big b{display:block;font:700 30px var(--rounded);letter-spacing:-.02em;font-variant-numeric:tabular-nums}
-.big span{font-size:13px;color:var(--fg2)}
-.bars{background:var(--card);border-radius:12px;padding:6px 14px}
-.bar{display:grid;grid-template-columns:96px 1fr 34px;align-items:center;gap:10px;padding:8px 0;font-size:15px}
+.sblock{display:flex;flex-direction:column;gap:8px}
+.sblock h3{margin:6px 4px 0;font-size:13px;font-weight:600;color:var(--fg2);text-transform:uppercase;letter-spacing:.04em}
+.big{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.big div{background:var(--card);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:4px}
+.big b{display:block;font:700 32px/1 var(--rounded);letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.big span{font-size:14px;line-height:1.3;color:var(--fg2)}
+.bars{background:var(--card);border-radius:12px;padding:2px 16px}
+.bar{display:grid;grid-template-columns:minmax(0,40%) 1fr auto;align-items:center;gap:12px;min-height:46px;padding:10px 0;font-size:16px}
 .bar+.bar{border-top:.5px solid var(--sep)}
 .bar em{font-style:normal;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.bar i{display:block;height:8px;border-radius:4px;background:var(--blue);min-width:4px}
-.bar b{text-align:right;font-variant-numeric:tabular-nums}
-.days{background:var(--card);border-radius:12px;padding:14px;display:flex;align-items:flex-end;gap:4px;height:120px}
-.days div{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:4px;height:100%;font-size:10px;color:var(--fg2)}
+.bar i{display:block;height:10px;border-radius:5px;background:var(--blue);min-width:6px}
+.bar .track{background:var(--fill);border-radius:5px;overflow:hidden}
+.bar b{text-align:right;min-width:28px;font-weight:600;font-variant-numeric:tabular-nums}
+.days{background:var(--card);border-radius:12px;padding:16px 12px 12px;display:flex;align-items:flex-end;gap:6px;height:170px}
+.days div{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:6px;height:100%;font-size:12px;color:var(--fg2)}
 .days i{display:block;width:100%;border-radius:3px 3px 0 0;background:var(--blue);min-height:2px}
-.days b{font-size:10px;color:var(--fg);font-weight:600;font-variant-numeric:tabular-nums}
+.days b{font-size:12px;color:var(--fg);font-weight:600;font-variant-numeric:tabular-nums}
+.days i{max-width:28px}
 .nameIn{height:48px;border-radius:12px;border:0;background:var(--fill);padding:0 14px;font-size:17px;color:var(--fg);outline:none}
 .mbtns{position:absolute;right:12px;top:10px;z-index:5;display:flex;flex-direction:column;border-radius:12px;overflow:hidden}
 .mbtns button{width:44px;height:44px;display:grid;place-items:center;color:var(--blue)}
@@ -283,12 +287,11 @@ function renderStats(){
   }
   const by=k=>{const m=new Map();rows.forEach(r=>{const v=r[k]||"Unknown";m.set(v,(m.get(v)||0)+1)});return[...m.entries()].sort((a,b)=>b[1]-a[1])};
   const people=by("n"),subs=by("s").slice(0,8),mx=Math.max(1,...cols.map(c=>c[1])),pm=Math.max(1,...people.map(p=>p[1])),sm=Math.max(1,...subs.map(p=>p[1]));
-  const bars=(list,max)=>list.length?`<div class="bars">${list.map(([k,v])=>`<div class="bar"><em>${esc(k)}</em><i style="width:${Math.max(3,v/max*100)}%"></i><b>${v}</b></div>`).join("")}</div>`:`<div class="empty" style="padding:14px">No drops ${label}</div>`;
+  const bars=(list,max)=>list.length?`<div class="bars">${list.map(([k,v])=>`<div class="bar"><em>${esc(k)}</em><span class="track"><i style="width:${Math.max(4,v/max*100)}%"></i></span><b>${v}</b></div>`).join("")}</div>`:`<div class="bars"><div class="empty" style="padding:16px 0">No drops ${label}</div></div>`;
   $("statsBody").innerHTML=`<div class="big"><div><b>${rows.length}</b><span>flyers dropped ${label}</span></div><div><b>${people.length}</b><span>people dropping</span></div></div>
-    <div class="cap" style="margin:4px 4px -6px">${title}</div>
-    <div class="days">${cols.map(([l,v,cur])=>`<div>${v?`<b>${v}</b>`:""}<i style="height:${v/mx*78}%;${cur?"":"opacity:.55"}"></i><span style="${cur?"color:var(--fg);font-weight:700":""}">${l}</span></div>`).join("")}</div>
-    <div class="cap" style="margin:4px 4px -6px">By person</div>${bars(people,pm)}
-    <div class="cap" style="margin:4px 4px -6px">Top suburbs</div>${bars(subs,sm)}
+    <section class="sblock"><h3>${title}</h3><div class="days">${cols.map(([l,v,cur])=>`<div>${v?`<b>${v}</b>`:""}<i style="height:${v/mx*78}%;${cur?"":"opacity:.55"}"></i><span style="${cur?"color:var(--fg);font-weight:700":""}">${l}</span></div>`).join("")}</div></section>
+    <section class="sblock"><h3>By person</h3>${bars(people,pm)}</section>
+    <section class="sblock"><h3>Top suburbs</h3>${bars(subs,sm)}</section>
     ${myName?`<button class="more" id="renameBtn">You're dropping as ${esc(myName)} · change</button>`:""}`;
 }
 
