@@ -204,7 +204,17 @@ export default {
       if (!src) return new Response("unknown agency", { status: 400 });
       const u = src.page(+url.searchParams.get("p") || 1), res = await fetch(u, { headers: UA }), html = await res.text();
       const rows = parseAgency(html, u);
-      return Response.json({ url: u, status: res.status, bytes: html.length, found: rows.length, rows: rows.slice(0, 15) }, { headers: { "Cache-Control": "no-store" } });
+      let hints;
+      if (!rows.length) { // show where addresses sit in the markup, as compact tag.class tokens
+        hints = [];
+        const re = /\b\d+[A-Za-z]?(?:\/\d+[A-Za-z]?)?\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)?\s+(?:Street|Road|Avenue|Terrace|Drive|Court|Crescent|Place|Parade|Grove|Way)\b/g;
+        let m; while ((m = re.exec(html)) && hints.length < 4) {
+          const seg = html.slice(Math.max(0, m.index - 900), m.index + 500);
+          hints.push(seg.replace(/<(\/?)([a-z0-9]+)([^>]*)>/gi, (x, sl, t, at) => { const c = (at.match(/class="([^"]*)"/) || [])[1]; const h = (at.match(/href="([^"]*)"/) || [])[1]; return "<" + sl + t + (c ? "." + c.trim().split(/\s+/).slice(0, 3).join(".") : "") + (h ? "[" + h.slice(0, 60) + "]" : "") + ">"; }).replace(/\s+/g, " "));
+          re.lastIndex = m.index + 400;
+        }
+      }
+      return Response.json({ url: u, status: res.status, bytes: html.length, found: rows.length, rows: rows.slice(0, 15), hints }, { headers: { "Cache-Control": "no-store" } });
     }
     if (url.pathname === "/api/agency-peek") { // dev helper: shows raw HTML around listings so the parser can be written
       const src = AGENCIES.find((x) => x.id === url.searchParams.get("a"));
