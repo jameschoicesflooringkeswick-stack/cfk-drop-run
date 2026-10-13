@@ -31,7 +31,7 @@ async function setDrop(request, env) {
 /* ---------- Agency "recently sold" pages (sites whose terms and robots.txt allow it) ---------- */
 const UA = { "User-Agent": "CFKDropRun/1.0 (internal tool; contact via choicesflooring.com.au)", "Accept": "text/html" };
 const AGENCIES = [ // pages = how deep to read each cycle (~6 weeks of sales); checked: terms + robots.txt allow it
-  { id: "klemich", pages: 10, page: (p) => `https://www.klemich.com.au/recently-sold/${p > 1 ? "page/" + p + "/" : ""}` },
+  { id: "klemich", pages: 10, page: (p) => `https://www.klemich.com.au/recently-sold${p > 1 ? "?page=" + p : "/"}` },
   { id: "magain", pages: 16, page: (p) => `https://www.magain.com.au/recently-sold/${p > 1 ? "page/" + p + "/" : ""}` },
   // Not used: OCRE (Vercel bot check), Ray White (CloudFront block) — we never get around blocks.
   // Fox, Eclipse: listings load by script, nothing in the page. LJ Hooker, Harcourts: terms forbid it.
@@ -95,6 +95,7 @@ async function geocode(r) {
 }
 async function crawlAgencies(env) {
   const st = (await env.DROPS.get("agency:v1", "json")) || { rows: {}, a: 0, p: 1, passes: {}, log: [] };
+  if (!st.fix1) { st.fix1 = 1; delete st.passes.klemich; } // first klemich pass hit a wrong page URL
   const src = AGENCIES[st.a % AGENCIES.length], first = !st.passes[src.id];
   const today = day(new Date()), u = src.page(st.p);
   let status = 0, found = 0, added = 0, known = null;
