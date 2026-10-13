@@ -52,7 +52,14 @@
    "waterfall-gully-sa-5066",
    "west-lakes-sa-5021",
    "woodforde-sa-5072",
-   "wynn-vale-sa-5127"
+   "wynn-vale-sa-5127",
+   "elizabeth-vale-sa-5112",
+   "craigmore-sa-5114",
+   "evanston-park-sa-5116",
+   "reid-sa-5118",
+   "hackham-west-sa-5163",
+   "seaford-meadows-sa-5169",
+   "verdun-sa-5245"
   ],
   "Tuesday": [
    "adelaide-sa-5000",
@@ -106,7 +113,14 @@
    "wattle-park-sa-5066",
    "west-lakes-shore-sa-5020",
    "woodville-sa-5011",
-   "yatala-vale-sa-5126"
+   "yatala-vale-sa-5126",
+   "elizabeth-downs-sa-5113",
+   "one-tree-hill-sa-5114",
+   "evanston-south-sa-5116",
+   "willaston-sa-5118",
+   "huntfield-heights-sa-5163",
+   "seaford-rise-sa-5169",
+   "two-wells-sa-5501"
   ],
   "Wednesday": [
    "albert-park-sa-5014",
@@ -159,7 +173,15 @@
    "valley-view-sa-5093",
    "wayville-sa-5034",
    "west-richmond-sa-5033",
-   "woodville-gardens-sa-5012"
+   "woodville-gardens-sa-5012",
+   "direk-sa-5110",
+   "elizabeth-north-sa-5113",
+   "smithfield-plains-sa-5114",
+   "hillier-sa-5116",
+   "kangaroo-flat-sa-5118",
+   "onkaparinga-heights-sa-5163",
+   "aldinga-sa-5173",
+   "roseworthy-sa-5371"
   ],
   "Thursday": [
    "alberton-sa-5014",
@@ -211,7 +233,16 @@
    "vista-sa-5091",
    "welland-sa-5007",
    "westbourne-park-sa-5041",
-   "woodville-north-sa-5012"
+   "woodville-north-sa-5012",
+   "burton-sa-5110",
+   "waterloo-corner-sa-5110",
+   "elizabeth-park-sa-5113",
+   "uleybury-sa-5114",
+   "gawler-east-sa-5118",
+   "buckland-park-sa-5120",
+   "port-noarlunga-south-sa-5167",
+   "port-willunga-sa-5173",
+   "williamstown-sa-5351"
   ],
   "Friday": [
    "aldgate-sa-5154",
@@ -264,7 +295,15 @@
    "walkerville-sa-5081",
    "west-beach-sa-5024",
    "windsor-gardens-sa-5087",
-   "woodville-park-sa-5011"
+   "woodville-park-sa-5011",
+   "elizabeth-east-sa-5112",
+   "hillbank-sa-5112",
+   "munno-para-downs-sa-5115",
+   "gawler-south-sa-5118",
+   "riverlea-park-sa-5120",
+   "noarlunga-downs-sa-5168",
+   "silver-sands-sa-5173",
+   "kersbrook-sa-5231"
   ],
   "Saturday": [
    "allenby-gardens-sa-5009",
@@ -317,7 +356,15 @@
    "walkley-heights-sa-5098",
    "west-croydon-sa-5008",
    "wingfield-sa-5013",
-   "woodville-south-sa-5011"
+   "woodville-south-sa-5011",
+   "elizabeth-grove-sa-5112",
+   "andrews-farm-sa-5114",
+   "munno-para-west-sa-5115",
+   "gawler-west-sa-5118",
+   "eyre-sa-5121",
+   "moana-sa-5169",
+   "sellicks-hill-sa-5174",
+   "salisbury-north-sa-5108"
   ],
   "Sunday": [
    "angle-park-sa-5010",
@@ -370,12 +417,18 @@
    "warradale-sa-5046",
    "west-hindmarsh-sa-5007",
    "woodcroft-sa-5162",
-   "woodville-west-sa-5011"
+   "woodville-west-sa-5011",
+   "elizabeth-south-sa-5112",
+   "blakeview-sa-5114",
+   "evanston-gardens-sa-5116",
+   "hewett-sa-5118",
+   "penfield-gardens-sa-5121",
+   "seaford-heights-sa-5169",
+   "littlehampton-sa-5250"
   ]
  },
  "regional": {
   "A": [
-   "salisbury-north-sa-5108",
    "echunga-sa-5153",
    "myponga-sa-5202",
    "warren-sa-5233",
@@ -391,7 +444,12 @@
    "urania-sa-5573",
    "port-lincoln-sa-5606",
    "paney-sa-5652",
-   "uno-sa-5717"
+   "uno-sa-5717",
+   "goolwa-beach-sa-5214",
+   "beachport-sa-5280",
+   "ceduna-waters-sa-5690",
+   "langhorne-creek-sa-5255",
+   "swan-reach-sa-5354"
   ],
   "B": [
    "edinburgh-sa-5111",
@@ -410,7 +468,11 @@
    "ramsay-sa-5575",
    "tulka-sa-5607",
    "cocata-sa-5654",
-   "bon-bon-sa-5719"
+   "bon-bon-sa-5719",
+   "goolwa-north-sa-5214",
+   "port-macdonnell-sa-5291",
+   "stirling-north-sa-5710",
+   "mallala-sa-5502"
   ],
   "C": [
    "elizabeth-sa-5112",
@@ -429,7 +491,11 @@
    "honiton-sa-5576",
    "whyalla-norrie-sa-5608",
    "narlaby-sa-5655",
-   "pimba-sa-5720"
+   "pimba-sa-5720",
+   "goolwa-south-sa-5214",
+   "moonta-bay-sa-5558",
+   "port-augusta-west-sa-5700",
+   "snowtown-sa-5520"
   ],
   "D": [
    "davoren-park-sa-5113",
@@ -448,7 +514,11 @@
    "warooka-sa-5577",
    "cowleds-landing-sa-5609",
    "cungena-sa-5660",
-   "andamooka-sa-5722"
+   "andamooka-sa-5722",
+   "hindmarsh-island-sa-5214",
+   "port-hughes-sa-5558",
+   "port-pirie-south-sa-5540",
+   "maitland-sa-5573"
   ],
   "E": [
    "smithfield-sa-5114",
@@ -467,7 +537,11 @@
    "curramulka-sa-5580",
    "cooyerdoo-sa-5611",
    "wallala-sa-5661",
-   "ingomar-sa-5723"
+   "ingomar-sa-5723",
+   "mount-torrens-sa-5244",
+   "north-beach-sa-5556",
+   "port-pirie-west-sa-5540",
+   "minlaton-sa-5575"
   ],
   "F": [
    "kudla-sa-5115",
@@ -486,7 +560,11 @@
    "port-vincent-sa-5581",
    "edilillie-sa-5630",
    "polda-sa-5670",
-   "marla-sa-5724"
+   "marla-sa-5724",
+   "angaston-sa-5353",
+   "port-broughton-sa-5522",
+   "solomontown-sa-5540",
+   "yorketown-sa-5576"
   ],
   "G": [
    "evanston-sa-5116",
@@ -505,7 +583,11 @@
    "stansbury-sa-5582",
    "cummins-sa-5631",
    "calca-sa-5671",
-   "roxby-downs-sa-5725"
+   "roxby-downs-sa-5725",
+   "mount-pleasant-sa-5235",
+   "crystal-brook-sa-5523",
+   "risdon-park-sa-5540",
+   "edithburgh-sa-5583"
   ],
   "H": [
    "angle-vale-sa-5117",
@@ -524,7 +606,11 @@
    "coobowie-sa-5583",
    "kapinnie-sa-5632",
    "carawa-sa-5680",
-   "beltana-sa-5730"
+   "beltana-sa-5730",
+   "murray-bridge-east-sa-5253",
+   "port-wakefield-sa-5550",
+   "mount-gambier-east-sa-5291",
+   "port-victoria-sa-5573"
   ],
   "I": [
    "gawler-sa-5118",
@@ -543,7 +629,11 @@
    "whyalla-sa-5600",
    "lock-sa-5633",
    "ceduna-sa-5690",
-   "farina-sa-5731"
+   "farina-sa-5731",
+   "murray-bridge-north-sa-5253",
+   "balaklava-sa-5461",
+   "mount-gambier-west-sa-5291",
+   "loxton-north-sa-5333"
   ],
   "J": [
    "virginia-sa-5120",
@@ -562,7 +652,11 @@
    "point-lowly-sa-5601",
    "cleve-sa-5640",
    "port-augusta-sa-5700",
-   "copley-sa-5732"
+   "copley-sa-5732",
+   "murray-bridge-south-sa-5253",
+   "riverton-sa-5412",
+   "suttontown-sa-5291",
+   "renmark-west-sa-5341"
   ],
   "K": [
    "penfield-sa-5121",
@@ -581,7 +675,11 @@
    "cowell-sa-5602",
    "kimba-sa-5641",
    "cook-sa-5701",
-   "marree-sa-5733"
+   "marree-sa-5733",
+   "kingscote-sa-5223",
+   "eudunda-sa-5374",
+   "kingston-se-sa-5275",
+   "paringa-sa-5340"
   ],
   "L": [
    "inglewood-sa-5133",
@@ -600,7 +698,11 @@
    "hincks-sa-5603",
    "kielpa-sa-5642",
    "nonning-sa-5710",
-   "eringa-sa-5734"
+   "eringa-sa-5734",
+   "penneshaw-sa-5222",
+   "coffin-bay-sa-5607",
+   "tailem-bend-sa-5259",
+   "lyrup-sa-5343"
   ],
   "M": [
    "forest-range-sa-5139",
@@ -618,7 +720,12 @@
    "ardrossan-sa-5571",
    "port-neill-sa-5604",
    "cootra-sa-5650",
-   "lake-torrens-sa-5713"
+   "lake-torrens-sa-5713",
+   "encounter-bay-sa-5211",
+   "american-river-sa-5221",
+   "tumby-bay-sa-5605",
+   "milang-sa-5256",
+   "morgan-sa-5320"
   ],
   "N": [
    "eagle-on-the-hill-sa-5150",
@@ -636,7 +743,12 @@
    "arthurton-sa-5572",
    "butler-sa-5605",
    "kyancutta-sa-5651",
-   "illeroo-sa-5715"
+   "illeroo-sa-5715",
+   "hayborough-sa-5211",
+   "robe-sa-5276",
+   "streaky-bay-sa-5680",
+   "clayton-bay-sa-5256",
+   "blanchetown-sa-5357"
   ]
  },
  "regional_anchor": "2026-10-12"
