@@ -438,7 +438,13 @@ function initMap(){
   map=new maplibregl.Map({container:"map",style:darkQ.matches?STYLE_DARK:STYLE_LIGHT,center:[o.lng,o.lat],zoom:13,attributionControl:false,pitchWithRotate:false,dragRotate:false,doubleClickZoom:false});
   map.touchZoomRotate.disableRotation();
   map.on("style.load",addLayers);
-  map.on("idle",()=>{if(mapReady&&!map.getLayer("range-line"))addLayers()});
+  // Self-heal: if the circle/route layers are ever missing (theme switch, app resumed, WebGL reset), put them back
+  const heal=()=>{if(!map)return;try{if(map.isStyleLoaded()&&(!map.getSource("range")||!map.getLayer("range-line")||!map.getLayer("route-line")))addLayers();else if(mapReady)draw()}catch(e){}};
+  map.on("idle",heal);map.on("styledata",()=>setTimeout(heal,50));
+  const wake=()=>{if(document.hidden||!map)return;try{map.resize();map.triggerRepaint()}catch(e){}[0,300,1200,3000].forEach(t=>setTimeout(heal,t))};
+  document.addEventListener("visibilitychange",wake);addEventListener("pageshow",wake);addEventListener("focus",wake);
+  map.getCanvas().addEventListener("webglcontextrestored",()=>[100,800].forEach(t=>setTimeout(heal,t)));
+  setInterval(()=>{if(!document.hidden)heal()},4000);
   const hq=document.createElement("div");hq.className="hq-pin";hq.textContent="CFK";
   hqMarker=new maplibregl.Marker({element:hq}).setLngLat([HQ.lng,HQ.lat]).addTo(map);
   const me=document.createElement("div");me.className="me-dot";me.innerHTML="<i></i>";
@@ -452,7 +458,8 @@ function initMap(){
     tapT=setTimeout(()=>{if(selected)closeDetail();if(innerWidth<860&&snapI>0)setSnap(0)},360)});
   ["stops","drops","others"].forEach(l=>{map.on("mouseenter",l,()=>map.getCanvas().style.cursor="pointer");map.on("mouseleave",l,()=>map.getCanvas().style.cursor="")});
   map.on("dragstart",()=>{$("whereIn").blur();if(innerWidth<860&&snapI===2)setSnap(1)});
-  darkQ.addEventListener?.("change",()=>{mapReady=false;map.setStyle(darkQ.matches?STYLE_DARK:STYLE_LIGHT)});
+  let theme=darkQ.matches;
+  darkQ.addEventListener?.("change",()=>{if(darkQ.matches===theme)return;theme=darkQ.matches;map.setStyle(darkQ.matches?STYLE_DARK:STYLE_LIGHT)});
 }
 function draw(){
   if(!map)return;const o=here();
@@ -461,7 +468,7 @@ function draw(){
   if(sig!==draw.sig){draw.sig=sig;(draw.pins||[]).forEach(m=>m.remove());
     draw.pins=[...all.entries()].reverse().map(([i,h])=>{const el=document.createElement("div");el.className="stop-pin"+(i>=route.length?" next":"")+(h.id===selected?" sel":"");el.textContent=i+1;
       el.addEventListener("click",ev=>{ev.stopPropagation();openDetail(h.id)});return new maplibregl.Marker({element:el}).setLngLat([h.lng,h.lat]).addTo(map)})}
-  if(!mapReady)return;
+  if(!mapReady&&!(map.isStyleLoaded&&map.isStyleLoaded()))return;
   if(!map.getSource("range")||!map.getLayer("range-line")){if(!draw.fix){draw.fix=setTimeout(()=>{draw.fix=0;if(map.isStyleLoaded())addLayers()},400)}return}
   const inR=nearby(),inSet=new Set(inR.map(h=>h.id)),order=new Map(route.map((h,i)=>[h.id,i]));
   map.getSource("range").setData(circleGeo(o,S.rad));
