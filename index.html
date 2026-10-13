@@ -331,6 +331,9 @@ function renderStats(){
 const here=()=>gps||S.loc||HQ;
 function setLoc(name){const c=SUB[name.toUpperCase()];if(!c)return false;S.loc={name,lat:c[0],lng:c[1]};store.set("dr4-loc",S.loc);stopGPS();
   $("whereIn").value="";$("whereIn").blur();$("sugg").hidden=true;render();fit();return true}
+function setPoint(lat,lng){let best=null,bd=1e9;for(const p of PLACES){const d=km({lat,lng},{lat:p[1],lng:p[2]});if(d<bd){bd=d;best=p[0]}}
+  S.loc={name:best||"Pinned spot",lat,lng,pin:true};store.set("dr4-loc",S.loc);stopGPS();$("sugg").hidden=true;
+  if(innerWidth<860&&snapI===0)setSnap(1);render();fit()}
 function startGPS(){if(!navigator.geolocation)return failGPS();$("gpsTxt").textContent="…";
   const t=setTimeout(failGPS,7000);
   try{watchId=navigator.geolocation.watchPosition(p=>{clearTimeout(t);const first=!gps;gps={name:"Your location",lat:p.coords.latitude,lng:p.coords.longitude,live:true};
@@ -360,7 +363,7 @@ function render(){
   const o=here();render.last={lat:o.lat,lng:o.lng};
   document.querySelectorAll(".seg button").forEach(b=>b.setAttribute("aria-pressed",+b.dataset.days===S.days));
   $("gpsBtn").classList.toggle("on",!!gps);if(gps)$("gpsTxt").textContent="Live";
-  $("whereIn").placeholder=gps?"Your location · tap to change":S.loc?`${S.loc.name} · tap to change`:"Where are you?";
+  $("whereIn").placeholder=gps?"Your location · tap to change":S.loc?`${S.loc.pin?"Near ":""}${S.loc.name} · tap to change`:"Where are you?";
   const all=nearby().sort((a,b)=>km(o,a)-km(o,b)),todo=all.filter(h=>!drops.has(h.id)),done=all.filter(h=>drops.has(h.id));
   route=plan(o,todo.slice(0,10));const later=todo.slice(10);nextUp=later;
   const place=gps?"you":S.loc?S.loc.name:"CFK";
@@ -436,7 +439,7 @@ function addLayers(){
 function initMap(){
   if(!window.maplibregl){$("map").innerHTML='<div class="empty" style="padding-top:30vh">Map could not load. Check your connection.</div>';return}
   const o=here();
-  map=new maplibregl.Map({container:"map",style:darkQ.matches?STYLE_DARK:STYLE_LIGHT,center:[o.lng,o.lat],zoom:13,attributionControl:false,pitchWithRotate:false,dragRotate:false});
+  map=new maplibregl.Map({container:"map",style:darkQ.matches?STYLE_DARK:STYLE_LIGHT,center:[o.lng,o.lat],zoom:13,attributionControl:false,pitchWithRotate:false,dragRotate:false,doubleClickZoom:false});
   map.touchZoomRotate.disableRotation();
   map.on("style.load",addLayers);
   map.on("idle",()=>{if(mapReady&&!map.getLayer("range-line"))addLayers()});
@@ -445,7 +448,12 @@ function initMap(){
   const me=document.createElement("div");me.className="me-dot";me.innerHTML="<i></i>";
   meMarker=new maplibregl.Marker({element:me});
   const hit=e=>{if(e.originalEvent&&e.originalEvent.target.closest&&e.originalEvent.target.closest(".stop-pin"))return{properties:{}};const f=map.queryRenderedFeatures(e.point,{layers:["drops","others"]});return f[0]};
-  map.on("click",e=>{const f=hit(e);if(f){if(f.properties.id)openDetail(f.properties.id);return}else{if(selected)closeDetail();if(innerWidth<860&&snapI>0)setSnap(0)}});
+  let lastTap=null,tapT=0;
+  map.on("click",e=>{const f=hit(e);if(f){lastTap=null;if(f.properties.id)openDetail(f.properties.id);return}
+    const now=Date.now();
+    if(lastTap&&now-lastTap.t<350&&Math.hypot(e.point.x-lastTap.x,e.point.y-lastTap.y)<40){clearTimeout(tapT);lastTap=null;if(selected)closeDetail();setPoint(e.lngLat.lat,e.lngLat.lng);return}
+    lastTap={t:now,x:e.point.x,y:e.point.y};clearTimeout(tapT);
+    tapT=setTimeout(()=>{if(selected)closeDetail();if(innerWidth<860&&snapI>0)setSnap(0)},360)});
   ["stops","drops","others"].forEach(l=>{map.on("mouseenter",l,()=>map.getCanvas().style.cursor="pointer");map.on("mouseleave",l,()=>map.getCanvas().style.cursor="")});
   map.on("dragstart",()=>{$("whereIn").blur();if(innerWidth<860&&snapI===2)setSnap(1)});
   darkQ.addEventListener?.("change",()=>{mapReady=false;map.setStyle(darkQ.matches?STYLE_DARK:STYLE_LIGHT)});
