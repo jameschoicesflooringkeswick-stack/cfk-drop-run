@@ -51,6 +51,7 @@ button{border:0;background:none;padding:0;cursor:pointer;-webkit-user-select:non
 
 .stop-pin{width:26px;height:26px;border-radius:50%;background:var(--blue);color:#fff;border:2.5px solid #fff;box-shadow:0 1px 5px rgba(0,0,0,.4);display:grid;place-items:center;font:800 13px/1 var(--rounded);cursor:pointer}
 .stop-pin.sel{width:34px;height:34px;font-size:15px}
+.seg button small{display:block;font-size:11px;font-weight:500;opacity:.6;margin-top:1px;line-height:1.1}
 .stop-pin.done{background:var(--green);font-size:13px}
 .stop-pin.next{width:22px;height:22px;background:#fff;color:var(--blue);border:2px solid var(--blue);font-size:10px}
 .stop-pin.next.sel{width:32px;height:32px;font-size:13px}
@@ -126,7 +127,7 @@ button{border:0;background:none;padding:0;cursor:pointer;-webkit-user-select:non
 .sugg span{color:var(--fg2);font-size:14px}
 
 .seg{display:grid;grid-template-columns:repeat(3,1fr);background:var(--fill);border-radius:9px;padding:2px;gap:2px}
-.seg button{padding:7px 0;border-radius:7px;font-size:14px;font-weight:600;color:var(--fg2);transition:background .2s,color .2s}
+.seg button{padding:5px 0 4px;line-height:1.15;border-radius:7px;font-size:14px;font-weight:600;color:var(--fg2);transition:background .2s,color .2s}
 .seg button[aria-pressed="true"]{background:var(--card);color:var(--fg);box-shadow:0 1px 3px rgba(0,0,0,.14)}
 .summary{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
 .summary h2{margin:0;font-size:22px;font-weight:700;letter-spacing:-.025em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -212,7 +213,7 @@ button{border:0;background:none;padding:0;cursor:pointer;-webkit-user-select:non
         </label>
         <div class="sugg" id="sugg" hidden></div>
         <div class="seg" role="group" aria-label="Sold in the last">
-          <button data-days="14">Just sold</button><button data-days="42">Planning</button><button data-days="70">Moving in</button>
+          <button data-days="14">Just sold<small>0–2 wks</small></button><button data-days="42">Planning<small>2–6 wks</small></button><button data-days="70">Moving in<small>6–10 wks</small></button>
         </div>
         <div class="summary"><h2 id="sumTxt">Nearby</h2><button id="radBtn"></button></div>
         <a class="go" id="goBtn"></a>
