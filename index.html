@@ -376,6 +376,8 @@ function suggest(){const q=$("whereIn").value.trim().toLowerCase();if(!q){$("sug
 const BANDS={7:0,21:7,35:21};
 function pool(){if(!(S.days in BANDS))S.days=7;const from=daysAgo(S.days),to=BANDS[S.days]?daysAgo(BANDS[S.days]):"9999";return homes.filter(h=>h.date>=from&&h.date<to)}
 function nearby(){const o=here();return pool().filter(h=>km(o,h)<=S.rad)}
+// dropped houses in the circle from any week tab (last 5 weeks), so you always see where you've been
+function droppedNear(){const o=here(),cut=daysAgo(35);return homes.filter(h=>drops.has(h.id)&&h.date>=cut&&km(o,h)<=S.rad)}
 function plan(start,pts){if(!pts.length)return[];let left=pts.slice(),out=[],cur=start;
   while(left.length){let bi=0,bd=1e9;left.forEach((p,i)=>{const d=km(cur,p);if(d<bd){bd=d;bi=i}});cur=left.splice(bi,1)[0];out.push(cur)}
   const p=[start,...out];let imp=true,g=0;
@@ -397,7 +399,7 @@ function render(){
   document.querySelectorAll(".seg button").forEach(b=>b.setAttribute("aria-pressed",+b.dataset.days===S.days));
   $("gpsBtn").classList.toggle("on",!!gps);if(gps)$("gpsTxt").textContent="Live";
   $("whereIn").placeholder=gps?"Your location · tap to change":S.loc?`${S.loc.pin?"Near ":""}${S.loc.name} · tap to change`:"Where are you?";
-  const all=nearby().sort((a,b)=>km(o,a)-km(o,b)),todo=all.filter(h=>!drops.has(h.id)),done=all.filter(h=>drops.has(h.id));
+  const all=nearby().sort((a,b)=>km(o,a)-km(o,b)),todo=all.filter(h=>!drops.has(h.id)),done=droppedNear().sort((a,b)=>km(o,a)-km(o,b));
   route=plan(o,todo.slice(0,150));const later=todo.slice(150);nextUp=later;
   const place=gps?"you":S.loc?S.loc.name:"CFK";
   $("sumTxt").textContent=all.length?`${all.length} sold near ${place}`:`Nothing near ${place}`;
@@ -415,7 +417,7 @@ function render(){
   let html="";
   if(S.problems&&S.problems.length)html+=`<div class="probs">${S.problems.map(p=>`<div class="prob ${p.level}"><b>${p.level==="error"?"Not updating":"Heads up"}</b>${esc(p.msg)}</div>`).join("")}</div>`;
   if(!homes.length)html+=`<div class="empty"><b>${S.problems&&S.problems.length?"No sales to show":"Loading sales…"}</b></div>`;
-  else if(!all.length)html+=`<div class="empty"><b>No sales in range</b>Try another week range, a bigger distance, or a different suburb.</div>`;
+  else if(!all.length&&!done.length)html+=`<div class="empty"><b>No sales in range</b>Try another week range, a bigger distance, or a different suburb.</div>`;
   else{if(route.length)html+=`<div class="list">${route.map(row).join("")}</div>`;
     if(route.length>10)html+=`<div class="cap" style="text-transform:none;letter-spacing:0;font-weight:500">Google Maps takes 10 stops at a time. Tick them off and the next 10 load.</div>`;
     if(later.length)html+=`<div class="cap">Further out · ${later.length}</div><div class="list">${later.map((h,i)=>row(h,route.length+i)).join("")}</div>`;
@@ -505,7 +507,7 @@ function initMap(){
 function draw(){
   if(!map)return;const o=here();
   if(o.hq)meMarker.remove();else{meMarker.setLngLat([o.lng,o.lat]);if(!meMarker._map)meMarker.addTo(map);meMarker.getElement().classList.toggle("live",!!gps)}
-  const done=nearby().filter(h=>drops.has(h.id)).slice(0,150);
+  const done=droppedNear().slice(0,150);
   const all=[...route,...nextUp.slice(0,80)],sig=all.map(h=>h.id).join("|")+"#"+done.map(h=>h.id).join("|")+"#"+selected;
   if(sig!==draw.sig){draw.sig=sig;(draw.pins||[]).forEach(m=>m.remove());
     // dropped houses stay on the map as green ticks
