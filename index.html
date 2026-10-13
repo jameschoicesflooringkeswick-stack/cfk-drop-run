@@ -194,7 +194,7 @@ button{border:0;background:none;padding:0;cursor:pointer;-webkit-user-select:non
 <div class="app" id="app">
   <div id="map" aria-label="Map of recent sales"></div>
   <div class="scrim"></div>
-  <button class="pulse glass" id="pulse" hidden aria-label="Sales summary"><b id="pulseN">0</b><span id="pulseT">sold · 5 wks</span><small id="pulseU"></small></button>
+  <button class="pulse glass" id="pulse" hidden aria-label="Sales summary"><b id="pulseN">0</b><span id="pulseT">sold · 10 wks</span><small id="pulseU"></small></button>
   <button class="statsfab glass" id="statsBtn" hidden aria-label="Team stats"><svg viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="12" width="4" height="8" rx="1"/><rect x="10" y="6" width="4" height="14" rx="1"/><rect x="16" y="9" width="4" height="11" rx="1"/></svg><span>Stats</span></button>
   <div class="mbtns glass"><button id="fitBtn" aria-label="Show all nearby"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
     <button id="zIn" aria-label="Zoom in"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
@@ -212,7 +212,7 @@ button{border:0;background:none;padding:0;cursor:pointer;-webkit-user-select:non
         </label>
         <div class="sugg" id="sugg" hidden></div>
         <div class="seg" role="group" aria-label="Sold in the last">
-          <button data-days="7">This week</button><button data-days="21">1–3 weeks</button><button data-days="35">3–5 weeks</button>
+          <button data-days="14">Just sold</button><button data-days="42">Planning</button><button data-days="70">Moving in</button>
         </div>
         <div class="summary"><h2 id="sumTxt">Nearby</h2><button id="radBtn"></button></div>
         <a class="go" id="goBtn"></a>
@@ -246,7 +246,7 @@ const HQ={name:"CFK, Keswick",lat:-34.9433,lng:138.5762,hq:true};
 const RADII=[3,5,10,20];
 
 const store={get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
-const S={days:[7,21,35].includes(store.get("dr4-days",7))?store.get("dr4-days",7):7,rad:store.get("dr4-rad",3),loc:store.get("dr4-loc",null)};
+const S={days:[14,42,70].includes(store.get("dr4-days",42))?store.get("dr4-days",42):42,rad:store.get("dr4-rad",3),loc:store.get("dr4-loc",null)};
 let nextUp=[],homes=[],drops=new Set(store.get("dr4-drops",[])),dbRef=null,gps=null,watchId=null,selected=null,route=[];
 const $=id=>document.getElementById(id);
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"})[c]);
@@ -373,11 +373,11 @@ function suggest(){const q=$("whereIn").value.trim().toLowerCase();if(!q){$("sug
     return`<button data-sub="${esc(n)}">${esc(n)}<span>${cnt} sold nearby</span></button>`}).join("");$("sugg").hidden=false}
 
 /* ---------- Route (background) ---------- */
-const BANDS={7:0,21:7,35:21};
-function pool(){if(!(S.days in BANDS))S.days=7;const from=daysAgo(S.days),to=BANDS[S.days]?daysAgo(BANDS[S.days]):"9999";return homes.filter(h=>h.date>=from&&h.date<to)}
+const BANDS={14:0,42:14,70:42}; // weeks since sold: 0–2 just sold, 2–6 planning (best), 6–10 moving in
+function pool(){if(!(S.days in BANDS))S.days=42;const from=daysAgo(S.days),to=BANDS[S.days]?daysAgo(BANDS[S.days]):"9999";return homes.filter(h=>h.date>=from&&h.date<to)}
 function nearby(){const o=here();return pool().filter(h=>km(o,h)<=S.rad)}
-// dropped houses in the circle from any week tab (last 5 weeks), so you always see where you've been
-function droppedNear(){const o=here(),cut=daysAgo(35);return homes.filter(h=>drops.has(h.id)&&h.date>=cut&&km(o,h)<=S.rad)}
+// dropped houses in the circle from any week tab (last 10 weeks), so you always see where you've been
+function droppedNear(){const o=here(),cut=daysAgo(70);return homes.filter(h=>drops.has(h.id)&&h.date>=cut&&km(o,h)<=S.rad)}
 function plan(start,pts){if(!pts.length)return[];let left=pts.slice(),out=[],cur=start;
   while(left.length){let bi=0,bd=1e9;left.forEach((p,i)=>{const d=km(cur,p);if(d<bd){bd=d;bi=i}});cur=left.splice(bi,1)[0];out.push(cur)}
   const p=[start,...out];let imp=true,g=0;
@@ -390,7 +390,7 @@ function goUrl(stops){const s=stops.slice(0,10),dest=s[s.length-1],w=s.slice(0,-
 /* ---------- Render ---------- */
 function ago2(iso){if(!iso)return"";const m=Math.round((Date.now()-Date.parse(iso))/60e3);return m<1?"just now":m<60?m+"m ago":m<1440?Math.round(m/60)+"h ago":Math.round(m/1440)+"d ago"}
 function renderPulse(){const el=$("pulse");if(!homes.length){el.hidden=true;return}
-  const cut=daysAgo(35),today=daysAgo(0),wk=daysAgo(7),n=homes.filter(h=>h.date>=cut).length,t=homes.filter(h=>h.date>=today&&!h.approx).length,w=homes.filter(h=>h.date>=wk).length;
+  const cut=daysAgo(70),today=daysAgo(0),wk=daysAgo(7),n=homes.filter(h=>h.date>=cut).length,t=homes.filter(h=>h.date>=today&&!h.approx).length,w=homes.filter(h=>h.date>=wk).length;
   el.hidden=false;$("pulseN").textContent=n.toLocaleString();
   const u=$("pulseU");u.className=t?"new":"";u.textContent=(t?`+${t} new today`:`${w} this week`)+(S.updatedAt?` · ${ago2(S.updatedAt)}`:"")}
 setInterval(()=>{if(!document.hidden&&homes.length)renderPulse()},60e3);

@@ -37,9 +37,9 @@ async function setDrop(request, env) {
 
 /* ---------- Agency "recently sold" pages (sites whose terms and robots.txt allow it) ---------- */
 const UA = { "User-Agent": "CFKDropRun/1.0 (internal tool; contact via choicesflooring.com.au)", "Accept": "text/html" };
-const AGENCIES = [ // pages = how deep to read each cycle (~6 weeks of sales); checked: terms + robots.txt allow it
-  { id: "klemich", pages: 10, page: (p) => `https://www.klemich.com.au/recently-sold${p > 1 ? "?page=" + p : "/"}` },
-  { id: "magain", pages: 16, page: (p) => `https://www.magain.com.au/recently-sold/${p > 1 ? "page/" + p + "/" : ""}` },
+const AGENCIES = [ // pages = how deep to read each cycle (~10 weeks of sales); checked: terms + robots.txt allow it
+  { id: "klemich", pages: 18, page: (p) => `https://www.klemich.com.au/recently-sold${p > 1 ? "?page=" + p : "/"}` },
+  { id: "magain", pages: 28, page: (p) => `https://www.magain.com.au/recently-sold/${p > 1 ? "page/" + p + "/" : ""}` },
   { id: "acre", pages: 1, parse: parseAC, page: () => "https://www.acrealestate.com.au/search?property_search%5Brent_or_sale%5D=PropertyForSale&property_search%5Bsold%5D=true" },
   // Not used: OCRE (Vercel bot check), Ray White (CloudFront block) — we never get around blocks.
   // Fox, Eclipse: listings load by script, nothing in the page. LJ Hooker, Harcourts: terms forbid it.
@@ -159,9 +159,10 @@ async function crawlAgencies(env, force) {
       for (const r of rows) {
         const k = geoKey(r.addr, r.suburb);
         if (st.rows[k]) { st.rows[k].seen = today; continue; }
-        const est = day(new Date(Date.now() - Math.round(((st.p - 1) / src.pages) * 42) * 864e5));
+        const est = day(new Date(Date.now() - Math.round(((st.p - 1) / src.pages) * 70) * 864e5));
         st.rows[k] = r.date ? { ...r, type: "House", src: src.id, seen: today } // site shows the real sale date
-          : { ...r, type: "House", date: first ? est : today, src: src.id, seen: today, ...(first ? { approx: 1 } : {}) };
+          : (first || st.p > 2) ? { ...r, type: "House", date: est, src: src.id, seen: today, approx: 1 } // never seen before but deep in the list: estimate from position
+          : { ...r, type: "House", date: today, src: src.id, seen: today }; // new on the first pages = sold just now
         added++;
       }
     }
