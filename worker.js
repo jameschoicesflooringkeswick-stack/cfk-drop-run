@@ -39,6 +39,52 @@ const AGENCIES = [
   { id: "raywhite", page: (p) => `https://www.raywhite.com/sold?state=SA${p > 1 ? "&page=" + p : ""}` },
 ];
 
+const strip = (h) => String(h || "").replace(/<[^>]+>/g, " ").replace(/&amp;/g, "&").replace(/&#0?39;|&rsquo;/g, "'").replace(/&nbsp;/g, " ").replace(/\s+/g, " ").trim();
+const STREET = /\b(street|st|road|rd|avenue|ave|terrace|tce|drive|dr|court|ct|crescent|cres|place|pl|parade|pde|grove|gr|lane|ln|way|close|cl|circuit|cct|boulevard|bvd|highway|hwy|walk|square|sq|rise|mews|esplanade|esp|crt|track|link|loop|row|vista|view|green|ridge|reach|glade|gardens|strand|common|chase|outlook|heights)\b/i;
+// "16 Tudor Street, Dulwich" / "16 Tudor Street Dulwich SA 5065" -> {addr, suburb}
+function splitAddress(t) {
+  t = strip(t).replace(/\s*,?\s*(SA|South Australia)\b.*$/i, "").replace(/^(sold|address)[:\s]*/i, "");
+  let addr, suburb;
+  if (t.includes(",")) { const parts = t.split(",").map((x) => x.trim()).filter(Boolean); suburb = parts.pop(); addr = parts.join(", "); }
+  else { const m = t.match(new RegExp("^(.*?" + STREET.source + ")\\s+(.+)$", "i")); if (m) { addr = m[1]; suburb = m[m.length - 1]; } }
+  if (!addr || !suburb || !/\d/.test(addr) || /\d/.test(suburb) || suburb.length > 30) return null;
+  return { addr: addr.replace(/^lot\s+\d+\s*,?\s*/i, "").trim(), suburb: title(suburb) };
+}
+// Generic sold-page parser: JSON-LD first (schema.org), then common listing-card markup.
+function parseAgency(html, base) {
+  const out = [], seen = new Set();
+  const add = (r) => { if (!r || seen.has(r.addr + "|" + r.suburb)) return; seen.add(r.addr + "|" + r.suburb); out.push(r); };
+  for (const m of html.matchAll(/<script[^>]*application\/ld\+json[^>]*>([\s\S]*?)<\/script>/gi)) {
+    let j; try { j = JSON.parse(m[1]); } catch { continue; }
+    const walk = (o) => {
+      if (!o || typeof o !== "object") return;
+      if (Array.isArray(o)) return o.forEach(walk);
+      const ad = o.address && typeof o.address === "object" ? o.address : null;
+      if (ad && (ad.streetAddress || ad.name)) {
+        const sp = splitAddress((ad.streetAddress || ad.name) + ", " + (ad.addressLocality || ""));
+        if (sp) add({ ...sp, url: o.url || (o.item && o.item.url) || "", price: num((o.offers && o.offers.price) || ""), bed: num(o.numberOfBedrooms || o.numberOfRooms), bath: num(o.numberOfBathroomsTotal) });
+      } else if (o.name && typeof o.name === "string" && STREET.test(o.name) && /^\s*\d/.test(o.name)) {
+        const sp = splitAddress(o.name); if (sp) add({ ...sp, url: o.url || "", price: num((o.offers && o.offers.price) || "") });
+      }
+      for (const v of Object.values(o)) if (v && typeof v === "object") walk(v);
+    };
+    walk(j);
+  }
+  if (!out.length) {
+    const cards = html.split(/class="[^"]*\b(?:listing-item|property-item|listing-card|property-card|listing)\b[^"]*"/i).slice(1);
+    for (const c0 of cards) {
+      const c = c0.slice(0, 5000);
+      const am = c.match(/class="[^"]*address[^"]*"[^>]*>([\s\S]*?)<\/(?:p|h\d|div|span|a)>/i);
+      if (!am) continue;
+      const sp = splitAddress(am[1]); if (!sp) continue;
+      const g = (k) => { const m = c.match(new RegExp('class="[^"]*' + k + '[^"]*"[^>]*>([\\s\\S]*?)<\\/', "i")); return m ? strip(m[1]) : ""; };
+      const href = (c.match(/href="([^"]+)"/) || [])[1] || "";
+      add({ ...sp, url: href.startsWith("http") ? href : href ? new URL(href, base).href : "", price: /\$/.test(g("price")) ? num(g("price").split("-")[0]) : 0, bed: num(g("bed")), bath: num(g("bath")), car: num(g("car")) });
+    }
+  }
+  return out;
+}
+
 /* ---------- Automatic sales refresh: PropTrack Listings API ----------
    Point & radius search (max 55 km) over a handful of points that cover SA's populated areas,
    status=sold, newest first. First run backfills KEEP_DAYS; later runs only ask for sales since
@@ -152,6 +198,13 @@ export default {
       return Response.json({ connected: !!(env.PROPTRACK_KEY && env.PROPTRACK_SECRET), updated: st.updated || null, lastRun: st.lastRun || null,
         sales: Object.keys(st.sales || {}).length, soldLast7Days: Object.values(st.sales || {}).filter((s) => s.date >= wk).length,
         sample: url.searchParams.has("sample") ? st.sample : undefined, log: (st.log || []).slice(0, 10) }, { headers: { "Cache-Control": "no-store" } });
+    }
+    if (url.pathname === "/api/agency-test") { // dev helper: parsed rows from one page
+      const src = AGENCIES.find((x) => x.id === url.searchParams.get("a"));
+      if (!src) return new Response("unknown agency", { status: 400 });
+      const u = src.page(+url.searchParams.get("p") || 1), res = await fetch(u, { headers: UA }), html = await res.text();
+      const rows = parseAgency(html, u);
+      return Response.json({ url: u, status: res.status, bytes: html.length, found: rows.length, rows: rows.slice(0, 15) }, { headers: { "Cache-Control": "no-store" } });
     }
     if (url.pathname === "/api/agency-peek") { // dev helper: shows raw HTML around listings so the parser can be written
       const src = AGENCIES.find((x) => x.id === url.searchParams.get("a"));
