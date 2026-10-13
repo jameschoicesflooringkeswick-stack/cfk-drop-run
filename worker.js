@@ -38,8 +38,8 @@ async function setDrop(request, env) {
 /* ---------- Agency "recently sold" pages (sites whose terms and robots.txt allow it) ---------- */
 const UA = { "User-Agent": "CFKDropRun/1.0 (internal tool; contact via choicesflooring.com.au)", "Accept": "text/html" };
 const AGENCIES = [ // pages = how deep to read each cycle (~10 weeks of sales); checked: terms + robots.txt allow it
-  { id: "klemich", pages: 18, page: (p) => `https://www.klemich.com.au/recently-sold${p > 1 ? "?page=" + p : "/"}` },
-  { id: "magain", pages: 28, page: (p) => `https://www.magain.com.au/recently-sold/${p > 1 ? "page/" + p + "/" : ""}` },
+  { id: "klemich", pages: 18, daysPerPage: null, page: (p) => `https://www.klemich.com.au/recently-sold${p > 1 ? "?page=" + p : "/"}` },
+  { id: "magain", pages: 28, daysPerPage: 5, page: (p) => `https://www.magain.com.au/recently-sold/${p > 1 ? "page/" + p + "/" : ""}` },
   { id: "acre", pages: 1, parse: parseAC, page: () => "https://www.acrealestate.com.au/search?property_search%5Brent_or_sale%5D=PropertyForSale&property_search%5Bsold%5D=true" },
   // Not used: OCRE (Vercel bot check), Ray White (CloudFront block) — we never get around blocks.
   // Fox, Eclipse: listings load by script, nothing in the page. LJ Hooker, Harcourts: terms forbid it.
@@ -142,7 +142,17 @@ async function siteOk(st, src, u) {
 async function crawlAgencies(env, force) {
   const st = (await env.DROPS.get("agency:v1", "json")) || { rows: {}, a: 0, p: 1, passes: {}, log: [] };
   st.sites ||= {};
+  st.deep ||= {};
   if (!st.fix1) { st.fix1 = 1; delete st.passes.klemich; } // first klemich pass hit a wrong page URL
+  if (!st.fix2) { // position-based dates were wrong (Klemich mixes in year-old sales): reset the guessed rows
+    st.fix2 = 1;
+    for (const [k, v] of Object.entries(st.rows)) {
+      if (!v.approx) continue;
+      if (v.src === "magain") delete st.rows[k]; // re-read with the better per-page estimate
+      else v.hidden = 1; // remember as already-sold so it never shows up as "new", but don't show a made-up date
+    }
+    delete st.passes.magain; delete st.deep.magain;
+  }
   // first pass of each site runs one page a minute so the app fills quickly; after that one page per 30 min
   // a one-off quick pass (1 page/min) after reading depth went from ~6 to ~10 weeks, so "Moving in" fills today
   st.deep ||= {};
@@ -161,9 +171,10 @@ async function crawlAgencies(env, force) {
       for (const r of rows) {
         const k = geoKey(r.addr, r.suburb);
         if (st.rows[k]) { st.rows[k].seen = today; continue; }
-        const est = day(new Date(Date.now() - Math.round(((st.p - 1) / src.pages) * 70) * 864e5));
+        const est = src.daysPerPage ? day(new Date(Date.now() - Math.round((st.p - 0.5) * src.daysPerPage) * 864e5)) : null;
         st.rows[k] = r.date ? { ...r, type: "House", src: src.id, seen: today } // site shows the real sale date
-          : (first || st.p > 2) ? { ...r, type: "House", date: est, src: src.id, seen: today, approx: 1 } // never seen before but deep in the list: estimate from position
+          : (first || st.p > 2) ? (est ? { ...r, type: "House", date: est, src: src.id, seen: today, approx: 1, pg: st.p } // newest-first list: estimate from position
+              : { ...r, type: "House", date: today, src: src.id, seen: today, hidden: 1 }) // list order unreliable: keep as known, don't show
           : { ...r, type: "House", date: today, src: src.id, seen: today }; // new on the first pages = sold just now
         added++;
       }
@@ -173,7 +184,7 @@ async function crawlAgencies(env, force) {
   let geo = 0;
   for (const r of Object.values(st.rows)) {
     if (geo >= 6) break;
-    if (r.lat || r.geoTried) continue;
+    if (r.lat || r.geoTried || r.hidden) continue;
     if (geo === 0) await new Promise((ok) => setTimeout(ok, 1100));
     r.geoTried = 1; geo++;
     try { const g = await geocode(r); if (g) Object.assign(r, g); } catch {}
@@ -317,7 +328,7 @@ export default {
     if (url.pathname === "/api/sales") {
       const st = env.DROPS ? await loadState(env) : { sales: {} };
       const ag = env.DROPS ? (await env.DROPS.get("agency:v1", "json")) || { rows: {} } : { rows: {} };
-      const agRows = Object.values(ag.rows).map(({ seen, geoTried, ...r }) => ({ ...r, url: r.url || "" }));
+      const agRows = Object.values(ag.rows).filter((r) => !r.hidden).map(({ seen, geoTried, hidden, pg, ...r }) => ({ ...r, url: r.url || "" }));
       return Response.json({ updated: [st.updated, ag.updated].filter(Boolean).sort().pop() || null, problems: health(ag), sales: [...Object.values(st.sales), ...agRows] }, { headers: { "Cache-Control": "no-store" } });
     }
     if (url.pathname === "/api/status") {
