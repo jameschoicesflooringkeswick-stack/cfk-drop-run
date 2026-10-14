@@ -36,6 +36,8 @@ async function setDrop(request, env) {
 
 
 /* ---------- Agency "recently sold" pages (sites whose terms and robots.txt allow it) ---------- */
+// Keswick Prime Market Area — only these suburbs are mapped (look-ups for others are skipped)
+const PMA = new Set(["ADELAIDE", "ADELAIDE AIRPORT", "ASHFORD", "BLACK FOREST", "BROOKLYN PARK", "CAMDEN PARK", "CLARENCE GARDENS", "CLARENCE PARK", "COWANDILLA", "CUMBERLAND PARK", "DULWICH", "EASTWOOD", "EVERARD PARK", "FLINDERS PARK", "FORESTVILLE", "FREWVILLE", "FULHAM", "FULHAM GARDENS", "FULLARTON", "GLANDORE", "GLENSIDE", "GLENUNGA", "GOODWOOD", "HAWTHORN", "HIGHGATE", "HILTON", "HYDE PARK", "KENT TOWN", "KESWICK", "KESWICK TERMINAL", "KINGS PARK", "KINGSWOOD", "KURRALTA PARK", "LOCKLEYS", "LOWER MITCHAM", "MALVERN", "MARLESTON", "MILE END", "MILE END SOUTH", "MILLSWOOD", "MITCHAM", "MOUNT OSMOND", "MYRTLE BANK", "NETHERBY", "NETLEY", "NORTH PLYMPTON", "NORWOOD", "NOVAR GARDENS", "PARKSIDE", "PLYMPTON", "RICHMOND", "ROSE PARK", "SOUTH PLYMPTON", "SPRINGFIELD", "THEBARTON", "TOORAK GARDENS", "TORRENS PARK", "TORRENSVILLE", "UNDERDALE", "UNLEY", "UNLEY PARK", "URRBRAE", "WAYVILLE", "WEST BEACH", "WEST RICHMOND", "WESTBOURNE PARK"]);
 const UA = { "User-Agent": "CFKDropRun/1.0 (internal tool; contact via choicesflooring.com.au)", "Accept": "text/html" };
 const AGENCIES = [ // pages = how deep to read each cycle (~10 weeks of sales); checked: terms + robots.txt allow it
   { id: "klemich", pages: 18, daysPerPage: null, page: (p) => `https://www.klemich.com.au/recently-sold${p > 1 ? "?page=" + p : "/"}` },
@@ -188,7 +190,7 @@ async function crawlAgencies(env, force) {
   let geo = 0;
   for (const r of Object.values(st.rows)) {
     if (geo >= 6) break;
-    if (r.lat || r.geoTried || r.hidden) continue;
+    if (r.lat || r.geoTried || r.hidden || !PMA.has(String(r.suburb).toUpperCase())) continue;
     if (geo === 0) await new Promise((ok) => setTimeout(ok, 1100));
     r.geoTried = 1; geo++;
     try { const g = await geocode(r); if (g) Object.assign(r, g); } catch {}
