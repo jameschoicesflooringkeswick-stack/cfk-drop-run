@@ -502,8 +502,6 @@ function initMap(){
   const o=here();
   map=new maplibregl.Map({container:"map",style:isDark()?STYLE_DARK:STYLE_LIGHT,center:[o.lng,o.lat],zoom:13,attributionControl:false,pitchWithRotate:false,dragRotate:false,doubleClickZoom:false});
   map.touchZoomRotate.disableRotation();
-  map.setMaxBounds([[138.42,-35.06],[138.75,-34.84]]); // Keswick PMA plus a little margin
-  map.setMinZoom(10.5);
   map.on("style.load",addLayers);
   // Self-heal: if the circle/route layers are ever missing (theme switch, app resumed, WebGL reset), put them back
   const heal=()=>{if(!map)return;try{if(map.isStyleLoaded()&&(!map.getSource("range")||!map.getLayer("range-line")||!map.getLayer("route-line")))addLayers();else if(mapReady)draw()}catch(e){}};
