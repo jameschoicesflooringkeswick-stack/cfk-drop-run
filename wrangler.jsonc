@@ -3,6 +3,5 @@
   "main": "worker.js",
   "compatibility_date": "2026-06-01",
   "assets": { "directory": ".", "binding": "ASSETS" },
-  "triggers": { "crons": ["* * * * *"] },
   "kv_namespaces": [{ "binding": "DROPS", "id": "318eab1c7ea54042ab6254e1f0521283" }]
 }
